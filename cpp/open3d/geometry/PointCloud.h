@@ -426,6 +426,9 @@ public:
     std::shared_ptr<PointCloud> CreateFromVoxelGrid(
             const VoxelGrid &voxel_grid);
 
+    std::shared_ptr<PointCloud> Morphological(float resolution,
+                                              const int morph_operator);
+
 public:
     /// Points coordinates.
     std::vector<Eigen::Vector3d> points_;
@@ -435,6 +438,7 @@ public:
     std::vector<Eigen::Vector3d> colors_;
     /// Covariance Matrix for each point
     std::vector<Eigen::Matrix3d> covariances_;
+
 };
 
 }  // namespace geometry
