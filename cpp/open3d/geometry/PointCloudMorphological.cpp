@@ -38,20 +38,37 @@
 namespace open3d {
 namespace geometry {
 
-void getMinMax3D(const PointCloud &cloud,
-                 Eigen::Vector3d &min_pt,
-                 Eigen::Vector3d &max_pt) {
+void getMinMax3D(const std::vector<Eigen::Vector3d>& points,
+                 Eigen::Vector3d& min_pt,
+                 Eigen::Vector3d& max_pt) {
     min_pt.setConstant(std::numeric_limits<float>::max());
     max_pt.setConstant(std::numeric_limits<float>::lowest());
-
-    for (const auto &point : cloud.points_) {
+    #pragma omp parallel for schedule(static)  num_threads(utility::EstimateMaxThreads())
+    for (size_t i=0; i < points.size(); ++i) {
         // Check if the point is invalid
-        if (!std::isfinite(point[0]) || !std::isfinite(point[1]) ||
-            !std::isfinite(point[2]))
+        if (!std::isfinite(points[i][0]) || !std::isfinite(points[i][1]) ||
+            !std::isfinite(points[i][2]))
             continue;
-        min_pt = min_pt.cwiseMin(point);
-        max_pt = max_pt.cwiseMax(point);
+        min_pt = min_pt.cwiseMin(points[i]);
+        max_pt = max_pt.cwiseMax(points[i]);
     }
+}
+
+std::vector<Eigen::Vector3d> GetPointWithinBoundingBox(
+        const std::vector<Eigen::Vector3d>& points,
+        const Eigen::Vector3d& bbox_min,
+        const Eigen::Vector3d& bbox_max) {
+    std::vector<Eigen::Vector3d> inside_points;
+#pragma omp parallel for schedule(static)  num_threads(utility::EstimateMaxThreads())
+    for (size_t idx = 0; idx < points.size(); idx++) {
+        const auto& point = points[idx];
+        if (point(0) >= bbox_min(0) && point(0) <= bbox_max(0) &&
+            point(1) >= bbox_min(1) && point(1) <= bbox_max(1) &&
+            point(2) >= bbox_min(2) && point(2) <= bbox_max(2)) {
+            inside_points.push_back(points[idx]);
+        }
+    }
+    return inside_points;
 }
 
 enum morph_operator { MORPH_OPEN, MORPH_CLOSE, MORPH_DILATE, MORPH_ERODE };
@@ -80,13 +97,13 @@ std::shared_ptr<PointCloud> PointCloud::Morphological(
                 double maxz = std::numeric_limits<float>::max();
                 Eigen::Vector3d bbox_min(minx, miny, minz);
                 Eigen::Vector3d bbox_max(maxx, maxy, maxz);
-                AxisAlignedBoundingBox aabb(bbox_min, bbox_max);
 
-                auto pcd_in_aabb = (*this).Crop(aabb);
+                auto inside_points = GetPointWithinBoundingBox(
+                        (*this).points_, bbox_min, bbox_max);
 
-                if (!pcd_in_aabb->points_.empty()) {
+                if (!inside_points.empty()) {
                     Eigen::Vector3d min_pt, max_pt;
-                    getMinMax3D((*pcd_in_aabb), min_pt, max_pt);
+                    getMinMax3D(inside_points, min_pt, max_pt);
 
                     switch (morph_operator) {
                         case MORPH_DILATE: {
