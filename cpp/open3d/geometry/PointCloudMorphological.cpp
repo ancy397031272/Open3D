@@ -29,8 +29,8 @@
 #include <iostream>
 #include <limits>
 
-#include "open3d/geometry/PointCloud.h"
 #include "open3d/geometry/BoundingVolume.h"
+#include "open3d/geometry/PointCloud.h"
 #include "open3d/utility/Logging.h"
 #include "open3d/utility/Parallel.h"
 #include "open3d/utility/ProgressBar.h"
@@ -38,11 +38,9 @@
 namespace open3d {
 namespace geometry {
 
-
 void getMinMax3D(const PointCloud &cloud,
                  Eigen::Vector3d &min_pt,
-                 Eigen::Vector3d &max_pt)
-{
+                 Eigen::Vector3d &max_pt) {
     min_pt.setConstant(std::numeric_limits<float>::max());
     max_pt.setConstant(std::numeric_limits<float>::lowest());
 
@@ -54,15 +52,9 @@ void getMinMax3D(const PointCloud &cloud,
         min_pt = min_pt.cwiseMin(point);
         max_pt = max_pt.cwiseMax(point);
     }
-
 }
 
-enum  morph_operator {
-    MORPH_OPEN,
-    MORPH_CLOSE,
-    MORPH_DILATE,
-    MORPH_ERODE
-};
+enum morph_operator { MORPH_OPEN, MORPH_CLOSE, MORPH_DILATE, MORPH_ERODE };
 
 std::shared_ptr<PointCloud> PointCloud::Morphological(
         float resolution, const int morph_operator) {
@@ -77,8 +69,9 @@ std::shared_ptr<PointCloud> PointCloud::Morphological(
     switch (morph_operator) {
         case MORPH_DILATE:
         case MORPH_ERODE: {
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
             for (size_t p_idx = 0; p_idx < points_.size(); ++p_idx) {
-
                 double minx = points_[p_idx][0] - extent_res;
                 double miny = points_[p_idx][1] - extent_res;
                 double minz = -std::numeric_limits<float>::max();
