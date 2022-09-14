@@ -43,8 +43,9 @@ void getMinMax3D(const std::vector<Eigen::Vector3d>& points,
                  Eigen::Vector3d& max_pt) {
     min_pt.setConstant(std::numeric_limits<float>::max());
     max_pt.setConstant(std::numeric_limits<float>::lowest());
-    #pragma omp parallel for schedule(static)  num_threads(utility::EstimateMaxThreads())
-    for (size_t i=0; i < points.size(); ++i) {
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
+    for (size_t i = 0; i < points.size(); ++i) {
         // Check if the point is invalid
         if (!std::isfinite(points[i][0]) || !std::isfinite(points[i][1]) ||
             !std::isfinite(points[i][2]))
@@ -59,7 +60,8 @@ std::vector<Eigen::Vector3d> GetPointWithinBoundingBox(
         const Eigen::Vector3d& bbox_min,
         const Eigen::Vector3d& bbox_max) {
     std::vector<Eigen::Vector3d> inside_points;
-#pragma omp parallel for schedule(static)  num_threads(utility::EstimateMaxThreads())
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
     for (size_t idx = 0; idx < points.size(); idx++) {
         const auto& point = points[idx];
         if (point(0) >= bbox_min(0) && point(0) <= bbox_max(0) &&
@@ -71,7 +73,25 @@ std::vector<Eigen::Vector3d> GetPointWithinBoundingBox(
     return inside_points;
 }
 
-enum morph_operator { MORPH_OPEN, MORPH_CLOSE, MORPH_DILATE, MORPH_ERODE };
+std::vector<double> GetPointZWithinBoundingBox(
+        const std::vector<Eigen::Vector3d>& points,
+        const Eigen::Vector3d& bbox_min,
+        const Eigen::Vector3d& bbox_max) {
+    std::vector<double> inside_points;
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
+    for (size_t idx = 0; idx < points.size(); idx++) {
+        const auto& point = points[idx];
+        if (point(0) >= bbox_min(0) && point(0) <= bbox_max(0) &&
+            point(1) >= bbox_min(1) && point(1) <= bbox_max(1) &&
+            point(2) >= bbox_min(2) && point(2) <= bbox_max(2)) {
+            inside_points.push_back(points[idx][2]);
+        }
+    }
+    return inside_points;
+}
+
+enum morph_operator { MORPH_DILATE, MORPH_ERODE };
 
 std::shared_ptr<PointCloud> PointCloud::Morphological(
         float resolution, const int morph_operator) {
@@ -88,6 +108,7 @@ std::shared_ptr<PointCloud> PointCloud::Morphological(
         case MORPH_ERODE: {
 #pragma omp parallel for schedule(static) \
         num_threads(utility::EstimateMaxThreads())
+
             for (size_t p_idx = 0; p_idx < points_.size(); ++p_idx) {
                 double minx = points_[p_idx][0] - extent_res;
                 double miny = points_[p_idx][1] - extent_res;
@@ -118,8 +139,47 @@ std::shared_ptr<PointCloud> PointCloud::Morphological(
                 }
             }
         }
+            //
+            //        default:
+            //            utility::LogError("Morphological operator is not
+            //            supported "); break;
     }
 
+    return cloud_out;
+}
+
+std::shared_ptr<PointCloud> PointCloud::MedianFilter(float resolution) {
+    if (points_.empty()) {
+        utility::LogDebug("MedianFilter point cloud size is 0");
+        return std::make_shared<PointCloud>(*this);
+    }
+    auto cloud_out = std::make_shared<PointCloud>(*this);
+
+    double extent_res = resolution / 2.0f;
+
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
+
+    for (size_t p_idx = 0; p_idx < points_.size(); ++p_idx) {
+        double minx = points_[p_idx][0] - extent_res;
+        double miny = points_[p_idx][1] - extent_res;
+        double minz = -std::numeric_limits<float>::max();
+        double maxx = points_[p_idx][0] + extent_res;
+        double maxy = points_[p_idx][1] + extent_res;
+        double maxz = std::numeric_limits<float>::max();
+        Eigen::Vector3d bbox_min(minx, miny, minz);
+        Eigen::Vector3d bbox_max(maxx, maxy, maxz);
+
+        auto vals =
+                GetPointZWithinBoundingBox((*this).points_, bbox_min, bbox_max);
+        if (vals.empty()) continue;
+
+        auto middle_it = vals.begin() + vals.size() / 2;
+        std::nth_element(vals.begin(), middle_it, vals.end());
+        float new_depth = *middle_it;
+
+        cloud_out->points_[p_idx][2] = new_depth;
+    }
     return cloud_out;
 }
 }  // namespace geometry

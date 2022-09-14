@@ -216,11 +216,11 @@ Returns:
                  "labels, -1 indicates noise according to the algorithm.",
                  "eps"_a, "min_points"_a, "print_progress"_a = false)
             .def("morphological", &PointCloud::Morphological,
-                 "Cluster PointCloud using the DBSCAN algorithm  Ester et al., "
-                 "'A Density-Based Algorithm for Discovering Clusters in Large "
-                 "Spatial Databases with Noise', 1996. Returns a list of point "
-                 "labels, -1 indicates noise according to the algorithm.",
+                 "morphological",
                  "resolution"_a, "morph_operator"_a)
+            .def("median_filter", &PointCloud::MedianFilter,
+                 "median_filter",
+                 "resolution"_a)
             .def("segment_plane", &PointCloud::SegmentPlane,
                  "Segments a plane in the point cloud using the RANSAC "
                  "algorithm.",

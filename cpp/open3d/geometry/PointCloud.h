@@ -428,6 +428,7 @@ public:
 
     std::shared_ptr<PointCloud> Morphological(float resolution,
                                               const int morph_operator);
+    std::shared_ptr<PointCloud> MedianFilter(float resolution);
 
 public:
     /// Points coordinates.
