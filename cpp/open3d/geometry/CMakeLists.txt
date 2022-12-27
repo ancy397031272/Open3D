@@ -34,6 +34,7 @@ target_sources(geometry PRIVATE
     TriangleMeshSubdivide.cpp
     VoxelGrid.cpp
     VoxelGridFactory.cpp
+    BoundaryDetection.cpp
 )
 
 open3d_show_and_abort_on_warning(geometry)

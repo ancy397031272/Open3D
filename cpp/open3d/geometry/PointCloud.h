@@ -426,6 +426,20 @@ public:
     static std::shared_ptr<PointCloud> CreateFromVoxelGrid(
             const VoxelGrid &voxel_grid);
 
+
+
+    /// \brief Detect boundary from point clouds
+
+    /// \param param nearest neighbor search parameter
+    /// \param angle_threshold angle threshold to decide if a point is a boundary
+    /// point
+
+    std::tuple<std::shared_ptr<PointCloud>, std::vector<size_t>> DetectBoundaryPoints(
+            const KDTreeSearchParam& param=KDTreeSearchParamKNN(),
+            double angle_threshold = 90.0);
+
+
+
 public:
     /// Points coordinates.
     std::vector<Eigen::Vector3d> points_;
