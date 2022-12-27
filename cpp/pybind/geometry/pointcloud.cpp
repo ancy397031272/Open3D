@@ -175,6 +175,10 @@ void pybind_pointcloud(py::module &m) {
                  "Function to compute the covariance matrix for each point "
                  "in the point cloud",
                  "search_param"_a = KDTreeSearchParamKNN())
+            .def("detect_boundary_points", &PointCloud::DetectBoundaryPoints,
+                 "Function to detect boundary points in the point cloud",
+                 "search_param"_a = KDTreeSearchParamKNN(),
+                 "angle_threshold"_a = 90.0)
             .def("compute_mean_and_covariance",
                  &PointCloud::ComputeMeanAndCovariance,
                  "Function to compute the mean and covariance matrix of a "
