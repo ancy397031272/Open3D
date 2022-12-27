@@ -56,7 +56,23 @@ void pybind_feature(py::module &m) {
                        std::to_string(f.Dimension()) +
                        std::string(" and num = ") + std::to_string(f.Num()) +
                        std::string("\nAccess its data via data member.");
-            });
+            })
+            .def(py::pickle(
+                    [](const Feature &f) { // __getstate__
+                        /* Return a tuple that fully encodes the state of the object */
+                        return py::make_tuple(f.data_);
+                    },
+                    [](py::tuple t) { // __setstate__
+                        if (t.size() != 1)
+                            throw std::runtime_error("Invalid state!");
+                        /* Create a new C++ instance */
+                        Feature f;
+                        /* Assign any additional state */
+                        f.data_ = t[0].cast<Eigen::MatrixXd>();
+
+                        return f;
+                    }
+            ));
     docstring::ClassMethodDocInject(m, "Feature", "dimension");
     docstring::ClassMethodDocInject(m, "Feature", "num");
     docstring::ClassMethodDocInject(m, "Feature", "resize",
