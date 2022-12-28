@@ -24,26 +24,16 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "pybind/pipelines/pipelines.h"
+#pragma once
 
 #include "pybind/open3d_pybind.h"
-#include "pybind/pipelines/color_map/color_map.h"
-#include "pybind/pipelines/integration/integration.h"
-#include "pybind/pipelines/odometry/odometry.h"
-#include "pybind/pipelines/registration/registration.h"
-#include "pybind/pipelines/pose_estimation/pose_estimation.h"
 
 namespace open3d {
 namespace pipelines {
+namespace pose_estimation {
 
-void pybind_pipelines(py::module& m) {
-    py::module m_pipelines = m.def_submodule("pipelines");
-    color_map::pybind_color_map(m_pipelines);
-    integration::pybind_integration(m_pipelines);
-    registration::pybind_registration(m_pipelines);
-    odometry::pybind_odometry(m_pipelines);
-    pose_estimation::pybind_pose_estimation(m_pipelines);
-}
+void pybind_pose_estimation(py::module &m);
 
+}  // namespace pose_estimation
 }  // namespace pipelines
 }  // namespace open3d
