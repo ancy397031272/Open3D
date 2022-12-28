@@ -18,6 +18,10 @@ target_sources(pipelines PRIVATE
 )
 
 target_sources(pipelines PRIVATE
+        pose_estimation/PPFEstimation.cpp
+)
+
+target_sources(pipelines PRIVATE
     registration/ColoredICP.cpp
     registration/CorrespondenceChecker.cpp
     registration/FastGlobalRegistration.cpp

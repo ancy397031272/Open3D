@@ -11,6 +11,10 @@ target_sources(pybind PRIVATE
 )
 
 target_sources(pybind PRIVATE
+        pose_estimation/pose_estimation.cpp
+        )
+
+target_sources(pybind PRIVATE
     odometry/odometry.cpp
 )
 
