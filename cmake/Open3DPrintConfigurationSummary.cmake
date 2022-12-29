@@ -95,6 +95,7 @@ function(open3d_print_configuration_summary)
         tinyfiledialogs
         TinyGLTF
         tinyobjloader
+        TEASER
         WebRTC
         ZeroMQ
     )
