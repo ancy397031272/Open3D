@@ -519,7 +519,48 @@ std::shared_ptr<PointCloud> PointCloud::RandomDownSample(
     indices.resize((int)(sampling_ratio * points_.size()));
     return SelectByIndex(indices);
 }
+std::tuple<std::shared_ptr<PointCloud>, std::vector<size_t>>
+PointCloud::SpatialDownSample(double min_distance,
+                              bool print_progress /* = false */) const {
+    KDTreeFlann kdtree;
+    kdtree.SetGeometry(*this);
+    return SpatialDownSample(min_distance, kdtree, print_progress);
+}
 
+std::tuple<std::shared_ptr<PointCloud>, std::vector<size_t>>
+PointCloud::SpatialDownSample(double min_distance,
+                              KDTreeFlann &kdtree,
+                              bool print_progress) const {
+    std::vector<bool> mask;
+    mask.resize(points_.size(), true);  // True by default
+    utility::OMPProgressBar progress_bar(
+            points_.size(), "Spatial down sample: ", print_progress);
+#pragma omp parallel for schedule(static) \
+        num_threads(utility::EstimateMaxThreads())
+    for (size_t i = 0; i < points_.size(); ++i) {
+        // no mark? skip this point
+        if (mask[i]) {
+            auto P = points_[i];
+            // look for neighbors and 'de-mark' them
+            std::vector<int> tmp_indices;
+            std::vector<double> dist;
+            kdtree.SearchRadius(P, min_distance, tmp_indices, dist);
+            for (size_t k = 0; k < tmp_indices.size(); ++k) {
+                if (static_cast<size_t>(tmp_indices[k]) != i) {
+                    mask[tmp_indices[k]] = false;
+                }
+            }
+        }
+        ++progress_bar;
+    }
+    std::vector<size_t> indices;
+    for (size_t i = 0; i < mask.size(); i++) {
+        if (mask[i]) {
+            indices.push_back(i);
+        }
+    }
+    return std::make_tuple(SelectByIndex(indices), indices);
+}
 std::shared_ptr<PointCloud> PointCloud::FarthestPointDownSample(
         size_t num_samples) const {
     if (num_samples == 0) {
