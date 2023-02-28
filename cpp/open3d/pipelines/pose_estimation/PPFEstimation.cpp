@@ -737,17 +737,21 @@ void PPFEstimator::Impl::SpreadPPF(const std::array<int, 4> &ppf,
     }
 
     for (int s0 = 0; s0 < 3; s0++) {
+        if (ppf[3] < 0) continue;
         d = dist_shift_lut_[ppf[3]][s0] * angle_num_3_;
         if (d < 0) continue;
         for (int s1 = 0; s1 < k; s1++) {
+            if (ppf[0] < 0) continue;
             a0 = alpha_shift_lut_[ppf[0]][s1];
             if (a0 < 0) continue;
             a0 += d;
             for (int s2 = 0; s2 < k; s2++) {
+                if (ppf[1] < 0) continue;
                 a1 = alpha_shift_lut_[ppf[1]][s2] * angle_num_;
                 if (a1 < 0) continue;
                 a1 += a0;
                 for (int s3 = 0; s3 < k; s3++) {
+                    if (ppf[2] < 0) continue;
                     a2 = alpha_shift_lut_[ppf[2]][s3] * angle_num_2_;
                     if (a2 < 0) continue;
                     idx[n] = a2 + a1;
