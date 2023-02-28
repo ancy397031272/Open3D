@@ -1884,18 +1884,6 @@ else()
     set(BUILD_WEBRTC_COMMENT "//")
 endif()
 
-# Teaser-plusplus
-include(${Open3D_3RDPARTY_DIR}/teaser-plusplus/teaser-plusplus.cmake)
-open3d_import_3rdparty_library(3rdparty_teaser
-        HIDDEN
-        INCLUDE_DIRS ${TEASER_INCLUDE_DIRS}
-        LIB_DIR      ${TEASER_LIB_DIR}
-        LIBRARIES    ${TEASER_LIBRARIES}
-        DEPENDS      ext_teaser
-        )
-list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_teaser)
-
-
 # Compactify list of external modules.
 # This must be called after all dependencies are processed.
 list(REMOVE_DUPLICATES Open3D_3RDPARTY_EXTERNAL_MODULES)

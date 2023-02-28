@@ -227,63 +227,7 @@ RegistrationResult RegistrationRANSACBasedOnFeatureMatching(
                 &checkers = {},
         const RANSACConvergenceCriteria &criteria =
                 RANSACConvergenceCriteria());
-/// \brief Function for Teaser registration based on a given set of
-/// correspondences.
-///
-/// \param source The source point cloud.
-/// \param target The target point cloud.
-/// \param corres Correspondence indices between source and target point clouds.
-/// \param noise_bound A bound on the noise of each provided measurement.
-/// \param cbar2  Square of the ratio between acceptable noise and noise bound. Usually set to 1.
-/// \param estimate_scaling Whether the scale is known. If set to False, the solver assumes no scale differences
-///        between the src and dst points. If set to True, the solver will first solve for scale.
-///        When the solver does not estimate scale, it solves the registration problem much faster.
-/// \param rotation_gnc_factor  Factor to multiple/divide the control parameter in the GNC algorithm.
-///        For GNC-TLS: the algorithm multiples the control parameter by the factor every iteration.
-/// \param rotation_max_iterations Maximum iterations allowed for the GNC rotation estimators.
-/// \param rotation_cost_threshold the cost threshold compares with the difference between costs of consecutive iterations.
-RegistrationResult RegistrationTeaserBasedOnCorrespondence(
-        const geometry::PointCloud &source,
-        const geometry::PointCloud &target,
-        const CorrespondenceSet &corres,
-        double noise_bound,
-        double cbar2 = 1,
-        bool estimate_scaling = false,
-        double rotation_gnc_factor = 1.4,
-        size_t rotation_max_iterations = 1000000,
-        double rotation_cost_threshold = 1e-16
-);
 
-/// \brief Function for Teaser registration based on feature matching.
-///
-/// \param source The source point cloud.
-/// \param target The target point cloud.
-/// \param source_feature Source point cloud feature.
-/// \param target_feature Target point cloud feature.
-/// \param mutual_filter Enables mutual filter such that the correspondence of
-/// the source point's correspondence is itself.
-/// \param noise_bound A bound on the noise of each provided measurement.
-/// \param cbar2  Square of the ratio between acceptable noise and noise bound. Usually set to 1.
-/// \param estimate_scaling Whether the scale is known. If set to False, the solver assumes no scale differences
-///        between the src and dst points. If set to True, the solver will first solve for scale.
-///        When the solver does not estimate scale, it solves the registration problem much faster.
-/// \param rotation_gnc_factor  Factor to multiple/divide the control parameter in the GNC algorithm.
-///        For GNC-TLS: the algorithm multiples the control parameter by the factor every iteration.
-/// \param rotation_max_iterations Maximum iterations allowed for the GNC rotation estimators.
-/// \param rotation_cost_threshold the cost threshold compares with the difference between costs of consecutive iterations.
-RegistrationResult RegistrationTeaserBasedOnFeatureMatching(
-        const geometry::PointCloud &source,
-        const geometry::PointCloud &target,
-        const Feature &source_feature,
-        const Feature &target_feature,
-        bool mutual_filter,
-        double noise_bound,
-        double cbar2 = 1,
-        bool estimate_scaling = false,
-        double rotation_gnc_factor = 1.4,
-        size_t rotation_max_iterations = 1000000,
-        double rotation_cost_threshold = 1e-16
-);
 /// \param source The source point cloud.
 /// \param target The target point cloud.
 /// \param max_correspondence_distance Maximum correspondence points-pair
