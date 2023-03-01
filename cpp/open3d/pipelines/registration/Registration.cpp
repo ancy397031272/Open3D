@@ -23,7 +23,6 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
-#include <teaser/registration.h>
 
 #include "open3d/pipelines/registration/Registration.h"
 
