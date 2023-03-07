@@ -584,29 +584,7 @@ static const std::unordered_map<std::string, std::string>
                 {"target", "The target point cloud."},
                 {"transformation",
                  "The 4x4 transformation matrix to transform ``source`` to "
-                 "``target``"},
-                {"noise_bound",
-                 "A bound on the noise of each provided measurement."},
-                {"cbar2",
-                 "Square of the ratio between acceptable noise and noise "
-                 "bound. Usually set to 1."},
-                {"estimate_scaling",
-                 "Whether the scale is known. If set to False, the solver "
-                 "assumes no scale differences"
-                 "between the src and dst points. If set to True, the solver "
-                 "will first solve for scale."
-                 "When the solver does not estimate scale, it solves the "
-                 "registration problem much faster."},
-                {"rotation_gnc_factor",
-                 "Factor to multiple/divide the control parameter in the GNC "
-                 "algorithm."
-                 "For GNC-TLS: the algorithm multiples the control parameter "
-                 "by the factor every iteration."},
-                {"rotation_max_iterations",
-                 "Maximum iterations allowed for the GNC rotation estimators."},
-                {"rotation_cost_threshold",
-                 "the cost threshold compares with the difference between "
-                 "costs of consecutive iterations."}};
+                 "``target``"}};
 
 void pybind_registration_methods(py::module &m) {
     m.def("evaluate_registration", &EvaluateRegistration,
@@ -676,32 +654,6 @@ void pybind_registration_methods(py::module &m) {
           "criteria"_a = RANSACConvergenceCriteria(100000, 0.999));
     docstring::FunctionDocInject(
             m, "registration_ransac_based_on_feature_matching",
-            map_shared_argument_docstrings);
-    m.def("registration_teaser_based_on_correspondence",
-          &RegistrationTeaserBasedOnCorrespondence,
-          py::call_guard<py::gil_scoped_release>(),
-          "Function for Teaser registration based on a given set of "
-          "correspondences.",
-          "source"_a, "target"_a, "corres"_a, "noise_bound"_a, "cbar2"_a = 1.,
-          "estimate_scaling"_a = false, "rotation_gnc_factor"_a = 1.4,
-          "rotation_max_iterations"_a = 1000000,
-          "rotation_cost_threshold"_a = 1e-16);
-    docstring::FunctionDocInject(
-            m, "registration_teaser_based_on_correspondence",
-            map_shared_argument_docstrings);
-
-    m.def("registration_teaser_based_on_feature_matching",
-          &RegistrationTeaserBasedOnFeatureMatching,
-          py::call_guard<py::gil_scoped_release>(),
-          "Function for Teaser registration based on feature matching.",
-          "source"_a, "target"_a, "source_feature"_a, "target_feature"_a,
-          "mutual_filter"_a, "noise_bound"_a, "cbar2"_a = 1.,
-          "estimate_scaling"_a = false, "rotation_gnc_factor"_a = 1.4,
-          "rotation_max_iterations"_a = 1000000,
-          "rotation_cost_threshold"_a = 1e-16);
-
-    docstring::FunctionDocInject(
-            m, "registration_teaser_based_on_feature_matching",
             map_shared_argument_docstrings);
 
     m.def("registration_fgr_based_on_correspondence",
