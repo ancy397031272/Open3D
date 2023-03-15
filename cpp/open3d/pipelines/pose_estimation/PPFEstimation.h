@@ -5,7 +5,7 @@
 
 // view point position factor
 const int VIEW_POINT_Z_EXTEND = 2;
-// maximum nn points of kdtree search for normal computing
+// maximum nn points of kd-tree search for normal computing
 const int NORMAL_CALC_NN =30;
 // maximum iteration of sparse pose refine for clustered pose
 const int SPARSE_REFINE_ICP_ITERATION =30;
@@ -24,7 +24,7 @@ public:
     ~PPFEstimatorConfig();
 
     // param to control key points selection
-    // TODO: can be extended more key points seletection methods
+    // TODO: can be extended more key points selection methods
     enum class ReferencePointSelection {
         Random = 0,
     };
@@ -75,7 +75,7 @@ public:
         VotingMode method;
         // if in faster mode, the spread of ppf hash table will be reduced
         bool faster_mode;
-        // ppf quantization resulotion
+        // ppf quantization resolution
         double angle_step;
         // minimum distance and angle threshold for point pair filtering
         double min_dist_thresh;
@@ -83,7 +83,7 @@ public:
     };
 
     struct EdgeParam {
-        // number of nearest points for kdtree searching
+        // number of nearest points for kd-tree searching
         int pts_num;
         double angle_threshold;
     };
