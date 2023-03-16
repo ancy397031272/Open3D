@@ -521,11 +521,11 @@ PointCloud::SpatialDownSample(double min_distance,
     mask.resize(points_.size(), true);  // True by default
     utility::OMPProgressBar progress_bar(
             points_.size(), "Spatial down sample: ", print_progress);
-#pragma omp parallel for schedule(static) \
-        num_threads(utility::EstimateMaxThreads())
+    std::vector<size_t> indices;
     for (size_t i = 0; i < points_.size(); ++i) {
         // no mark? skip this point
         if (mask[i]) {
+            indices.push_back(i);
             auto P = points_[i];
             // look for neighbors and 'de-mark' them
             std::vector<int> tmp_indices;
@@ -539,12 +539,7 @@ PointCloud::SpatialDownSample(double min_distance,
         }
         ++progress_bar;
     }
-    std::vector<size_t> indices;
-    for (size_t i = 0; i < mask.size(); i++) {
-        if (mask[i]) {
-            indices.push_back(i);
-        }
-    }
+
     return std::make_tuple(SelectByIndex(indices), indices);
 }
 std::shared_ptr<PointCloud> PointCloud::FarthestPointDownSample(

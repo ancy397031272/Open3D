@@ -47,7 +47,7 @@ public:
         config_ = config;
         dist_threshold_ = config.rel_dist_thresh_;
         // (calc_normal_relative_ = config.rel_sample_dist_ / 2) is usually a
-        // good choise
+        // good choice
         calc_normal_relative_ = config.training_param_.calc_normal_relative;
         enable_edge_support_ = (config.voting_param_.method ==
                                 PPFEstimatorConfig::VotingMode::EdgePoints)
@@ -89,7 +89,7 @@ private:
     double CalcAlpha(const PointXYZ &pt,
                      const Transformation t_normal_to_region);
 
-    // use_flag: 1: use translation, 2: dsadse rotation, 3: both
+    // use_flag: 1: use translation, 2: use rotation, 3: both
     bool MatchPose(const Pose6D &src, const Pose6D &dst, const int use_flag);
 
     void SpreadPPF(const std::array<int, 4> &ppf,
@@ -178,10 +178,8 @@ public:
     open3d::geometry::PointCloud model_sample_;
     open3d::geometry::PointCloud dense_model_sample_;
 
-    open3d::geometry::PointCloud scene_sample_; // not need saved
-    open3d::geometry::PointCloud dense_scene_sample_; // not need saved
-
-
+    open3d::geometry::PointCloud scene_sample_;        // not need saved
+    open3d::geometry::PointCloud dense_scene_sample_;  // not need saved
 
     std::vector<size_t> scene_edge_ind_;
     std::vector<size_t> model_edge_ind_;
@@ -240,13 +238,15 @@ void PPFEstimator::Impl::PreprocessTrain(
     r_min_ = sqrt(d_ordered[0] * d_ordered[0] + d_ordered[1] * d_ordered[1]);
     dist_step_ = diameter * config_.training_param_.rel_sample_dist;
     dist_step_dense_ = diameter * config_.training_param_.rel_dense_sample_dist;
-    dist_threshold_ *= diameter;
-    const double normal_r = diameter * calc_normal_relative_;
+    dist_threshold_ = diameter * config_.rel_dist_thresh_;
+    const double normal_r =
+            diameter * config_.training_param_.calc_normal_relative;
 
     utility::LogInfo(
             "Model training params: normal search radius: {}, sample "
-            "distance: {}, dense sample distance: {}",
-            normal_r, dist_step_, dist_step_dense_);
+            "distance: {}, dense sample distance: {}, "
+            "distance threshold: {}",
+            normal_r, dist_step_, dist_step_dense_, dist_threshold_);
 
     auto kdtree = std::make_shared<KDTree>(*pc);
     CalcModelNormalAndSampling(pc, kdtree, normal_r, dist_step_, view_pt,
@@ -330,10 +330,8 @@ bool PPFEstimator::Impl::Estimate(const PointCloudPtr &pc,
         PPFEstimatorConfig::VotingMode::SampledPoints) {
         VotingAndGetPose(*key_points, scene_sample_, hash_table_, tmg_ptr_,
                          pose_list, pc_num_, pc_num_, pc_neighbor_);
-    }
-
-    if (config_.voting_param_.method ==
-        PPFEstimatorConfig::VotingMode::EdgePoints) {
+    } else if (config_.voting_param_.method ==
+               PPFEstimatorConfig::VotingMode::EdgePoints) {
         const auto scene_boundary_points =
                 dense_scene_sample_.SelectByIndex(scene_edge_ind_);
 
@@ -904,7 +902,7 @@ void PPFEstimator::Impl::ClusterPoses(
             break;
         }
     }
-    // use kdtree to find neighbor
+    // use kd-tree to find neighbor
     open3d::geometry::PointCloud pose_ts;
     pose_ts.points_.resize(valid_pose);
     for (int i = 0; i < valid_pose; i++) {
@@ -1286,7 +1284,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     }
     alpha_2_shift_lut_.resize(alpha_model_num);
     for (int i = 0; i < alpha_model_num; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             alpha_2_shift_lut_[i][j] =
                     (i + j - 1 + alpha_model_num) % alpha_model_num;
         }
@@ -1294,7 +1292,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     alpha_shift_lut_.resize(angle_num_);
     int t;
     for (int i = 0; i < angle_num_; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             t = i + j - 1;
             if (t < 0 || t >= angle_num_) t = -1;
             alpha_shift_lut_[i][j] = t;
@@ -1302,7 +1300,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     }
     dist_shift_lut_.resize(dist_num_);
     for (int i = 0; i < dist_num_; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             t = i + j - 1;
             if (t < 0 || t >= dist_num_) t = -1;
             dist_shift_lut_[i][j] = t;
@@ -1481,159 +1479,158 @@ bool PPFEstimator::SaveModel(const std::string &filename) {
 
 bool PPFEstimator::ReadFromFile(FILE *file) {
     // define function
-    auto read_vector3d=[&](Eigen::Vector3d& v){
-      if (fread(v.data(), sizeof(double), 3, file) < 1) {
-          return false;
-      }
-      return true;
+    auto read_vector3d = [&](Eigen::Vector3d &v) {
+        if (fread(v.data(), sizeof(double), 3, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto read_vector3ds = [&]( std::vector<Eigen::Vector3d>& vs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      vs.resize(count);
-      for (size_t i = 0; i < count; i++) {
-          if (!read_vector3d(vs[i])){
-              return false;
-          }
-      }
-      return true;
+    auto read_vector3ds = [&](std::vector<Eigen::Vector3d> &vs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        vs.resize(count);
+        for (size_t i = 0; i < count; i++) {
+            if (!read_vector3d(vs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
 
     auto read_point_cloud = [&](open3d::geometry::PointCloud &pc) {
-      // read points
-      if (!read_vector3ds(pc.points_)) {
-          return false;
-      }
-      // read normals
-      if (!read_vector3ds(pc.normals_)) {
-          return false;
-      }
-      return true;
+        // read points
+        if (!read_vector3ds(pc.points_)) {
+            return false;
+        }
+        // read normals
+        if (!read_vector3ds(pc.normals_)) {
+            return false;
+        }
+        return true;
     };
-    auto read_size_t_vs = [&](std::vector<size_t>& vs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      vs.resize(count);
-      if (fread(vs.data(), sizeof(size_t ),
-                count, file) < 1) {
-          return false;
-      }
-      return true;
+    auto read_size_t_vs = [&](std::vector<size_t> &vs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        vs.resize(count);
+        if (fread(vs.data(), sizeof(size_t), count, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto read_point_pair = [&](PointPair& info){
-      if (fread(&info.i_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      if (fread(&info.j_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      if (fread(&info.alpha_, sizeof(double), 1, file) < 1) {
-          return false;
-      }
-      if (fread(&info.quant_alpha_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      return true;
-    };
-
-    auto read_point_pairs = [&](std::vector<PointPair>& infos){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      infos.resize(count);
-      for (size_t i = 0; i < infos.size(); i++) {
-          if (!read_point_pair(infos[i])){
-              return false;
-          }
-      }
-      return true;
+    auto read_point_pair = [&](PointPair &info) {
+        if (fread(&info.i_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        if (fread(&info.j_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        if (fread(&info.alpha_, sizeof(double), 1, file) < 1) {
+            return false;
+        }
+        if (fread(&info.quant_alpha_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        return true;
     };
 
-    auto read_hash_table = [&](std::vector<std::vector<PointPair>>& hash_table){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      hash_table.resize(count);
-      for (size_t i = 0; i < hash_table.size(); i++) {
-          if (!read_point_pairs(hash_table[i])) {
-              return false;
-          }
-      }
-      return true;
+    auto read_point_pairs = [&](std::vector<PointPair> &infos) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        infos.resize(count);
+        for (size_t i = 0; i < infos.size(); i++) {
+            if (!read_point_pair(infos[i])) {
+                return false;
+            }
+        }
+        return true;
     };
-    auto read_transformation=[&](Transformation & v){
-      if (fread(v.data(), sizeof(double), 16, file) < 1) {
-          return false;
-      }
-      return true;
+
+    auto read_hash_table =
+            [&](std::vector<std::vector<PointPair>> &hash_table) {
+                uint32_t count;
+                if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+                    return false;
+                }
+                if (count == 0) return true;
+                hash_table.resize(count);
+                for (size_t i = 0; i < hash_table.size(); i++) {
+                    if (!read_point_pairs(hash_table[i])) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+    auto read_transformation = [&](Transformation &v) {
+        if (fread(v.data(), sizeof(double), 16, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto read_transformations = [&](std::vector<Transformation>& vs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      vs.resize(count);
-      for (size_t i = 0; i < count; i++) {
-          if (!read_transformation(vs[i])){
-              return false;
-          }
-      }
-      return true;
+    auto read_transformations = [&](std::vector<Transformation> &vs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        vs.resize(count);
+        for (size_t i = 0; i < count; i++) {
+            if (!read_transformation(vs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
-    auto read_int_vs = [&](std::vector<int>& vs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      vs.resize(count);
-      if (fread(vs.data(), sizeof(int ),
-                count, file) < 1) {
-          return false;
-      }
-      return true;
+    auto read_int_vs = [&](std::vector<int> &vs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        vs.resize(count);
+        if (fread(vs.data(), sizeof(int), count, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto read_array3i=[&](std::array<int, 3>& v){
-      if (fread(v.data(), sizeof(int), 3, file) < 1) {
-          return false;
-      }
-      return true;
+    auto read_array3i = [&](std::array<int, 3> &v) {
+        if (fread(v.data(), sizeof(int), 3, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto read_array3is = [&]( std::vector<std::array<int, 3>>& vs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      vs.resize(count);
-      for (size_t i = 0; i < count; i++) {
-          if (!read_array3i(vs[i])){
-              return false;
-          }
-      }
-      return true;
+    auto read_array3is = [&](std::vector<std::array<int, 3>> &vs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        vs.resize(count);
+        for (size_t i = 0; i < count; i++) {
+            if (!read_array3i(vs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
-    auto read_int_vvs = [&](std::vector<std::vector<int>>& vvs){
-      uint32_t count;
-      if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      vvs.resize(count);
-      for (size_t i = 0; i < vvs.size(); i++) {
-          if (!read_int_vs(vvs[i])) {
-              return false;
-          }
-      }
-      return true;
+    auto read_int_vvs = [&](std::vector<std::vector<int>> &vvs) {
+        uint32_t count;
+        if (fread(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        vvs.resize(count);
+        for (size_t i = 0; i < vvs.size(); i++) {
+            if (!read_int_vs(vvs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
 
     // read model param
@@ -1650,21 +1647,21 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         return false;
     }
 
-    if(!read_point_cloud(impl_ptr_->model_sample_)){
+    if (!read_point_cloud(impl_ptr_->model_sample_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
 
-    if(!read_point_cloud(impl_ptr_->dense_model_sample_)){
+    if (!read_point_cloud(impl_ptr_->dense_model_sample_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
 
-    if(!read_size_t_vs(impl_ptr_->scene_edge_ind_)){
+    if (!read_size_t_vs(impl_ptr_->scene_edge_ind_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_size_t_vs(impl_ptr_->model_edge_ind_)){
+    if (!read_size_t_vs(impl_ptr_->model_edge_ind_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1676,7 +1673,7 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_point_cloud(impl_ptr_->model_sample_centered_)){
+    if (!read_point_cloud(impl_ptr_->model_sample_centered_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1684,15 +1681,14 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_hash_table(impl_ptr_->hash_table_)){
+    if (!read_hash_table(impl_ptr_->hash_table_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_hash_table(impl_ptr_->hashtable_boundary_)){
+    if (!read_hash_table(impl_ptr_->hashtable_boundary_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-
 
     if (fread(&impl_ptr_->r_min_, sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
@@ -1723,11 +1719,11 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         return false;
     }
 
-    if(!read_transformations(impl_ptr_->tmg_ptr_)){
+    if (!read_transformations(impl_ptr_->tmg_ptr_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_transformations(impl_ptr_->tmg_ptr_boundary_)){
+    if (!read_transformations(impl_ptr_->tmg_ptr_boundary_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1741,7 +1737,7 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         return false;
     }
 
-    if(!read_vector3d(impl_ptr_->centroid_)){
+    if (!read_vector3d(impl_ptr_->centroid_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1754,24 +1750,24 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
         return false;
     }
 
-    if(!read_int_vs(impl_ptr_->alpha_lut_)){
+    if (!read_int_vs(impl_ptr_->alpha_lut_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
 
-    if(!read_array3is(impl_ptr_->alpha_shift_lut_)){
+    if (!read_array3is(impl_ptr_->alpha_shift_lut_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_array3is(impl_ptr_->dist_shift_lut_)){
+    if (!read_array3is(impl_ptr_->dist_shift_lut_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_array3is(impl_ptr_->alpha_2_shift_lut_)){
+    if (!read_array3is(impl_ptr_->alpha_2_shift_lut_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if(!read_int_vvs(impl_ptr_->pc_neighbor_)){
+    if (!read_int_vvs(impl_ptr_->pc_neighbor_)) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1783,92 +1779,110 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
 
     // config
     // TrainingParam
-    if (fread(&impl_ptr_->config_.training_param_.invert_model_normal, sizeof(bool ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.training_param_.invert_model_normal,
+              sizeof(bool), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.training_param_.use_external_normal, sizeof(bool), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.training_param_.use_external_normal,
+              sizeof(bool), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.training_param_.rel_sample_dist, sizeof(double), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.training_param_.rel_sample_dist,
+              sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.training_param_.calc_normal_relative, sizeof(double), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.training_param_.calc_normal_relative,
+              sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.training_param_.rel_dense_sample_dist, sizeof(double), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.training_param_.rel_dense_sample_dist,
+              sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
     // ReferenceParam
-    if (fread(&impl_ptr_->config_.ref_param_.method, sizeof(int), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.ref_param_.method, sizeof(int), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.ref_param_.ratio, sizeof(double), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.ref_param_.ratio, sizeof(double), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
     // VotingParam
-    if (fread(&impl_ptr_->config_.voting_param_.method, sizeof(int), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.voting_param_.method, sizeof(int), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.voting_param_.faster_mode, sizeof(bool ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.voting_param_.faster_mode, sizeof(bool), 1,
+              file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.voting_param_.angle_step, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.voting_param_.angle_step, sizeof(double), 1,
+              file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.voting_param_.min_dist_thresh, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.voting_param_.min_dist_thresh, sizeof(double),
+              1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.voting_param_.min_angle_thresh, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.voting_param_.min_angle_thresh,
+              sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
     // EdgeParam
-    if (fread(&impl_ptr_->config_.edge_param_.pts_num, sizeof(int ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.edge_param_.pts_num, sizeof(int), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.edge_param_.angle_threshold, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.edge_param_.angle_threshold, sizeof(double),
+              1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
     // RefineParam
-    if (fread(&impl_ptr_->config_.refine_param_.method, sizeof(int ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.refine_param_.method, sizeof(int), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.refine_param_.rel_dist_sparse_thresh, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.refine_param_.rel_dist_sparse_thresh,
+              sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
 
-    if (fread(&impl_ptr_->config_.rel_dist_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.rel_dist_thresh_, sizeof(double), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.rel_angle_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.rel_angle_thresh_, sizeof(double), 1, file) <
+        1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.score_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.score_thresh_, sizeof(double), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.num_result_, sizeof(int ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.num_result_, sizeof(int), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
-    if (fread(&impl_ptr_->config_.object_id_, sizeof(int ), 1, file) < 1) {
+    if (fread(&impl_ptr_->config_.object_id_, sizeof(int), 1, file) < 1) {
         utility::LogWarning("Read P3D failed: unexpected error.");
         return false;
     }
@@ -1876,152 +1890,150 @@ bool PPFEstimator::ReadFromFile(FILE *file) {
 }
 
 bool PPFEstimator::WriteToFile(FILE *file) {
-    auto write_vector3d=[&](const Eigen::Vector3d& v){
-      if (fwrite(v.data(), sizeof(double), 3, file) < 1) {
-          return false;
-      }
-      return true;
+    auto write_vector3d = [&](const Eigen::Vector3d &v) {
+        if (fwrite(v.data(), sizeof(double), 3, file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto write_vector3ds = [&](const std::vector<Eigen::Vector3d>& vs){
-      uint32_t count = (uint32_t)vs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < vs.size(); i++) {
-          if (!write_vector3d(vs[i])){
-              return false;
-          }
-      }
-      return true;
+    auto write_vector3ds = [&](const std::vector<Eigen::Vector3d> &vs) {
+        uint32_t count = (uint32_t)vs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        for (size_t i = 0; i < vs.size(); i++) {
+            if (!write_vector3d(vs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
-
 
     auto write_point_cloud = [&](const open3d::geometry::PointCloud &pc) {
-      // write points
-      if (!write_vector3ds(pc.points_)) {
-          return false;
-      }
-      // write normals
-      if (!write_vector3ds(pc.normals_)) {
-          return false;
-      }
-      return true;
+        // write points
+        if (!write_vector3ds(pc.points_)) {
+            return false;
+        }
+        // write normals
+        if (!write_vector3ds(pc.normals_)) {
+            return false;
+        }
+        return true;
     };
 
-    auto write_size_t_vs = [&](const std::vector<size_t>& vs){
-      uint32_t count = (uint32_t)vs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      if (fwrite(vs.data(), sizeof(size_t ),
-                 vs.size(), file) < 1) {
-          return false;
-      }
-      return true;
+    auto write_size_t_vs = [&](const std::vector<size_t> &vs) {
+        uint32_t count = (uint32_t)vs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        if (fwrite(vs.data(), sizeof(size_t), vs.size(), file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto write_point_pair = [&](const PointPair& info){
-      if (fwrite(&info.i_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      if (fwrite(&info.j_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      if (fwrite(&info.alpha_, sizeof(double), 1, file) < 1) {
-          return false;
-      }
-      if (fwrite(&info.quant_alpha_, sizeof(int), 1, file) < 1) {
-          return false;
-      }
-      return true;
-    };
-
-    auto write_point_pairs = [&](const std::vector<PointPair>& infos){
-      uint32_t count = (uint32_t)infos.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < infos.size(); i++) {
-          if (!write_point_pair(infos[i])){
-              return false;
-          }
-      }
-      return true;
+    auto write_point_pair = [&](const PointPair &info) {
+        if (fwrite(&info.i_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        if (fwrite(&info.j_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        if (fwrite(&info.alpha_, sizeof(double), 1, file) < 1) {
+            return false;
+        }
+        if (fwrite(&info.quant_alpha_, sizeof(int), 1, file) < 1) {
+            return false;
+        }
+        return true;
     };
 
-    auto write_hash_table = [&](std::vector<std::vector<PointPair>> hash_table){
-      uint32_t count = (uint32_t)hash_table.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < hash_table.size(); i++) {
-          if (!write_point_pairs(hash_table[i])) {
-              return false;
-          }
-      }
-      return true;
-    };
-    auto write_transformation=[&](const Transformation & v){
-      if (fwrite(v.data(), sizeof(double), 16, file) < 1) {
-          return false;
-      }
-      return true;
+    auto write_point_pairs = [&](const std::vector<PointPair> &infos) {
+        uint32_t count = (uint32_t)infos.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        for (size_t i = 0; i < infos.size(); i++) {
+            if (!write_point_pair(infos[i])) {
+                return false;
+            }
+        }
+        return true;
     };
 
-    auto write_transformations = [&](const std::vector<Transformation>& vs){
-      uint32_t count = (uint32_t)vs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < vs.size(); i++) {
-          if (!write_transformation(vs[i])){
-              return false;
-          }
-      }
-      return true;
-    };
-    auto write_int_vs = [&](const std::vector<int>& vs){
-      uint32_t count = (uint32_t)vs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      if (count == 0) return true;
-      if (fwrite(vs.data(), sizeof(int ),
-                 vs.size(), file) < 1) {
-          return false;
-      }
-      return true;
+    auto write_hash_table =
+            [&](std::vector<std::vector<PointPair>> hash_table) {
+                uint32_t count = (uint32_t)hash_table.size();
+                if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+                    return false;
+                }
+                for (size_t i = 0; i < hash_table.size(); i++) {
+                    if (!write_point_pairs(hash_table[i])) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+    auto write_transformation = [&](const Transformation &v) {
+        if (fwrite(v.data(), sizeof(double), 16, file) < 1) {
+            return false;
+        }
+        return true;
     };
 
-    auto write_array3i=[&](const std::array<int, 3>& v){
-      if (fwrite(v.data(), sizeof(int), 3, file) < 1) {
-          return false;
-      }
-      return true;
+    auto write_transformations = [&](const std::vector<Transformation> &vs) {
+        uint32_t count = (uint32_t)vs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        for (size_t i = 0; i < vs.size(); i++) {
+            if (!write_transformation(vs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
-    auto write_array3is = [&](const std::vector<std::array<int, 3>>& vs){
-      uint32_t count = (uint32_t)vs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < vs.size(); i++) {
-          if (!write_array3i(vs[i])){
-              return false;
-          }
-      }
-      return true;
+    auto write_int_vs = [&](const std::vector<int> &vs) {
+        uint32_t count = (uint32_t)vs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        if (count == 0) return true;
+        if (fwrite(vs.data(), sizeof(int), vs.size(), file) < 1) {
+            return false;
+        }
+        return true;
     };
-    auto write_int_vvs = [&](const std::vector<std::vector<int>>& vvs){
-      uint32_t count = (uint32_t)vvs.size();
-      if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
-          return false;
-      }
-      for (size_t i = 0; i < vvs.size(); i++) {
-          if (!write_int_vs(vvs[i])) {
-              return false;
-          }
-      }
-      return true;
+
+    auto write_array3i = [&](const std::array<int, 3> &v) {
+        if (fwrite(v.data(), sizeof(int), 3, file) < 1) {
+            return false;
+        }
+        return true;
+    };
+    auto write_array3is = [&](const std::vector<std::array<int, 3>> &vs) {
+        uint32_t count = (uint32_t)vs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        for (size_t i = 0; i < vs.size(); i++) {
+            if (!write_array3i(vs[i])) {
+                return false;
+            }
+        }
+        return true;
+    };
+    auto write_int_vvs = [&](const std::vector<std::vector<int>> &vvs) {
+        uint32_t count = (uint32_t)vvs.size();
+        if (fwrite(&count, sizeof(uint32_t), 1, file) < 1) {
+            return false;
+        }
+        for (size_t i = 0; i < vvs.size(); i++) {
+            if (!write_int_vs(vvs[i])) {
+                return false;
+            }
+        }
+        return true;
     };
     // write model param
     if (fwrite(&impl_ptr_->diameter_, sizeof(double), 1, file) < 1) {
@@ -2036,21 +2048,21 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_point_cloud(impl_ptr_->model_sample_)){
+    if (!write_point_cloud(impl_ptr_->model_sample_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
 
-    if(!write_point_cloud(impl_ptr_->dense_model_sample_)){
+    if (!write_point_cloud(impl_ptr_->dense_model_sample_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
 
-    if(!write_size_t_vs(impl_ptr_->scene_edge_ind_)){
+    if (!write_size_t_vs(impl_ptr_->scene_edge_ind_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_size_t_vs(impl_ptr_->model_edge_ind_)){
+    if (!write_size_t_vs(impl_ptr_->model_edge_ind_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2062,7 +2074,7 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_point_cloud(impl_ptr_->model_sample_centered_)){
+    if (!write_point_cloud(impl_ptr_->model_sample_centered_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2071,11 +2083,11 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         return false;
     }
 
-    if(!write_hash_table(impl_ptr_->hash_table_)){
+    if (!write_hash_table(impl_ptr_->hash_table_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_hash_table(impl_ptr_->hashtable_boundary_)){
+    if (!write_hash_table(impl_ptr_->hashtable_boundary_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2109,11 +2121,11 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         return false;
     }
 
-    if(!write_transformations(impl_ptr_->tmg_ptr_)){
+    if (!write_transformations(impl_ptr_->tmg_ptr_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_transformations(impl_ptr_->tmg_ptr_boundary_)){
+    if (!write_transformations(impl_ptr_->tmg_ptr_boundary_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2121,11 +2133,12 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->calc_normal_relative_, sizeof(double), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->calc_normal_relative_, sizeof(double), 1, file) <
+        1) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_vector3d(impl_ptr_->centroid_)){
+    if (!write_vector3d(impl_ptr_->centroid_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2139,23 +2152,23 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         return false;
     }
 
-    if(!write_int_vs(impl_ptr_->alpha_lut_)){
+    if (!write_int_vs(impl_ptr_->alpha_lut_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_array3is(impl_ptr_->alpha_shift_lut_)){
+    if (!write_array3is(impl_ptr_->alpha_shift_lut_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_array3is(impl_ptr_->dist_shift_lut_)){
+    if (!write_array3is(impl_ptr_->dist_shift_lut_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_array3is(impl_ptr_->alpha_2_shift_lut_)){
+    if (!write_array3is(impl_ptr_->alpha_2_shift_lut_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
-    if(!write_int_vvs(impl_ptr_->pc_neighbor_)){
+    if (!write_int_vvs(impl_ptr_->pc_neighbor_)) {
         utility::LogWarning("Write P3D failed: unexpected error.");
         return false;
     }
@@ -2164,93 +2177,112 @@ bool PPFEstimator::WriteToFile(FILE *file) {
         return false;
     }
     // TrainingParam
-    if (fwrite(&impl_ptr_->config_.training_param_.invert_model_normal, sizeof(bool ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.training_param_.invert_model_normal,
+               sizeof(bool), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.training_param_.use_external_normal, sizeof(bool ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.training_param_.use_external_normal,
+               sizeof(bool), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.training_param_.rel_sample_dist, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.training_param_.rel_sample_dist,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.training_param_.calc_normal_relative, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.training_param_.calc_normal_relative,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.training_param_.rel_dense_sample_dist, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.training_param_.rel_dense_sample_dist,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
     // ReferenceParam
-    if (fwrite(&impl_ptr_->config_.ref_param_.method, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.ref_param_.method, sizeof(int), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.ref_param_.ratio, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.ref_param_.ratio, sizeof(double), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
     // VotingParam
-    if (fwrite(&impl_ptr_->config_.voting_param_.method, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.voting_param_.method, sizeof(int), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.voting_param_.faster_mode, sizeof(bool ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.voting_param_.faster_mode, sizeof(bool), 1,
+               file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.voting_param_.angle_step, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.voting_param_.angle_step, sizeof(double), 1,
+               file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.voting_param_.min_dist_thresh, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.voting_param_.min_dist_thresh,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.voting_param_.min_angle_thresh, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.voting_param_.min_angle_thresh,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
 
     // EdgeParam
-    if (fwrite(&impl_ptr_->config_.edge_param_.pts_num, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.edge_param_.pts_num, sizeof(int), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.edge_param_.angle_threshold, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.edge_param_.angle_threshold, sizeof(double),
+               1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
     // RefineParam
-    if (fwrite(&impl_ptr_->config_.refine_param_.method, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.refine_param_.method, sizeof(int), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.refine_param_.rel_dist_sparse_thresh, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.refine_param_.rel_dist_sparse_thresh,
+               sizeof(double), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
 
-    if (fwrite(&impl_ptr_->config_.rel_dist_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.rel_dist_thresh_, sizeof(double), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.rel_angle_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.rel_angle_thresh_, sizeof(double), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.score_thresh_, sizeof(double ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.score_thresh_, sizeof(double), 1, file) <
+        1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.num_result_, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.num_result_, sizeof(int), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
-    if (fwrite(&impl_ptr_->config_.object_id_, sizeof(int ), 1, file) < 1) {
+    if (fwrite(&impl_ptr_->config_.object_id_, sizeof(int), 1, file) < 1) {
         open3d::utility::LogWarning("Write M3D failed: unexpected error.");
         return false;
     }
