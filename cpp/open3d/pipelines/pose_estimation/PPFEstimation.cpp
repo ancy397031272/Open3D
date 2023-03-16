@@ -330,10 +330,8 @@ bool PPFEstimator::Impl::Estimate(const PointCloudPtr &pc,
         PPFEstimatorConfig::VotingMode::SampledPoints) {
         VotingAndGetPose(*key_points, scene_sample_, hash_table_, tmg_ptr_,
                          pose_list, pc_num_, pc_num_, pc_neighbor_);
-    }
-
-    if (config_.voting_param_.method ==
-        PPFEstimatorConfig::VotingMode::EdgePoints) {
+    } else if (config_.voting_param_.method ==
+               PPFEstimatorConfig::VotingMode::EdgePoints) {
         const auto scene_boundary_points =
                 dense_scene_sample_.SelectByIndex(scene_edge_ind_);
 
@@ -904,7 +902,7 @@ void PPFEstimator::Impl::ClusterPoses(
             break;
         }
     }
-    // use kdtree to find neighbor
+    // use kd-tree to find neighbor
     open3d::geometry::PointCloud pose_ts;
     pose_ts.points_.resize(valid_pose);
     for (int i = 0; i < valid_pose; i++) {
@@ -1286,7 +1284,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     }
     alpha_2_shift_lut_.resize(alpha_model_num);
     for (int i = 0; i < alpha_model_num; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             alpha_2_shift_lut_[i][j] =
                     (i + j - 1 + alpha_model_num) % alpha_model_num;
         }
@@ -1294,7 +1292,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     alpha_shift_lut_.resize(angle_num_);
     int t;
     for (int i = 0; i < angle_num_; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             t = i + j - 1;
             if (t < 0 || t >= angle_num_) t = -1;
             alpha_shift_lut_[i][j] = t;
@@ -1302,7 +1300,7 @@ void PPFEstimator::Impl::GenerateLUT() {
     }
     dist_shift_lut_.resize(dist_num_);
     for (int i = 0; i < dist_num_; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 3; j++) {  // spread one back and forth
             t = i + j - 1;
             if (t < 0 || t >= dist_num_) t = -1;
             dist_shift_lut_[i][j] = t;
