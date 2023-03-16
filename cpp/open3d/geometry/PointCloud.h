@@ -485,8 +485,7 @@ public:
             double angle_threshold = 90.0);
     /// \brief Fit Spline from point clouds
 
-    std::vector<Eigen::Vector3d> FitBSpline(const PointCloud &pc,
-                                            size_t sample_num = 100,
+    std::vector<Eigen::Vector3d> FitBSpline(size_t sample_num = 100,
                                             size_t degree = 3,
                                             bool is_equidistant = true,
                                             bool is_close = true);

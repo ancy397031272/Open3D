@@ -838,8 +838,7 @@ PointCloud::HiddenPointRemoval(const Eigen::Vector3d &camera_location,
     }
     return std::make_tuple(visible_mesh, pt_map);
 }
-std::vector<Eigen::Vector3d> PointCloud::FitBSpline(const PointCloud &pc,
-                                                    size_t sample_num,
+std::vector<Eigen::Vector3d> PointCloud::FitBSpline(size_t sample_num,
                                                     size_t degree,
                                                     bool is_equidistant,
                                                     bool is_close) {
@@ -852,8 +851,8 @@ std::vector<Eigen::Vector3d> PointCloud::FitBSpline(const PointCloud &pc,
 
     // Setup control points.
     std::vector<tinyspline::real> ctrlp = spline.controlPoints();
-    for (size_t p_idx = 0; p_idx < pc.points_.size(); p_idx++) {
-        Eigen::Vector3d one_pt = pc.points_[p_idx];
+    for (size_t p_idx = 0; p_idx < points_.size(); p_idx++) {
+        Eigen::Vector3d one_pt = points_[p_idx];
         for (size_t j = 0; j < 3; j++) {
             ctrlp[p_idx * 3 + j] = (tsReal)one_pt[j];  // x0
         }
