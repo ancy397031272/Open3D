@@ -4,6 +4,7 @@
 // Copyright (c) 2018-2023 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
+#include "tinysplinecxx.h"
 
 #include "open3d/geometry/PointCloud.h"
 
@@ -837,6 +838,50 @@ PointCloud::HiddenPointRemoval(const Eigen::Vector3d &camera_location,
     }
     return std::make_tuple(visible_mesh, pt_map);
 }
+std::vector<Eigen::Vector3d> PointCloud::FitBSpline(const PointCloud &pc,
+                                                    size_t sample_num,
+                                                    size_t degree,
+                                                    bool is_equidistant,
+                                                    bool is_close) {
+    // Create a cubic spline
+    auto spline_type = tinyspline::BSpline::Opened;
+    if (is_close) {
+        spline_type = tinyspline::BSpline::Clamped;
+    }
+    tinyspline::BSpline spline(sample_num, 3, degree, spline_type);
 
+    // Setup control points.
+    std::vector<tinyspline::real> ctrlp = spline.controlPoints();
+    for (size_t p_idx = 0; p_idx < pc.points_.size(); p_idx++) {
+        Eigen::Vector3d one_pt = pc.points_[p_idx];
+        for (size_t j = 0; j < 3; j++) {
+            ctrlp[p_idx * 3 + j] = (tsReal)one_pt[j];  // x0
+        }
+    }
+
+    spline.setControlPoints(ctrlp);
+    // Get sample points
+    std::vector<Eigen::Vector3d> result_points;
+
+    if (is_equidistant) {
+        tinyspline::std_real_vector_out knots =
+                spline.equidistantKnotSeq(sample_num);
+        tinyspline::FrameSeq frames = spline.computeRMF(knots);
+
+        for (size_t idx = 0; idx < frames.size(); idx++) {
+            tinyspline::Vec3 pos = frames.at(idx).position();
+            result_points.emplace_back(
+                    Eigen::Vector3d(pos.x(), pos.y(), pos.z()));
+        }
+    } else {
+        std::vector<tinyspline::real> points = spline.sample(sample_num);
+        for (size_t i = 0; i < points.size() / 3; i++) {
+            result_points.emplace_back(Eigen::Vector3d(
+                    points[i * 3], points[i * 3 + 1], points[i * 3 + 2]));
+        }
+    }
+
+    return result_points;
+}
 }  // namespace geometry
 }  // namespace open3d

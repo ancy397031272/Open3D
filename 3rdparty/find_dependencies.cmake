@@ -980,6 +980,17 @@ else()
     list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_SYSTEM Open3D::3rdparty_tinyobjloader)
 endif()
 
+# tinespline
+include(${Open3D_3RDPARTY_DIR}/tinyspline/tinyspline.cmake)
+open3d_import_3rdparty_library(3rdparty_tinyspline
+        HIDDEN
+        INCLUDE_DIRS ${TINYSPLINE_INCLUDE_DIRS}
+        LIB_DIR      ${TINYSPLINE_LIB_DIR}
+        LIBRARIES    ${TINYSPLINE_LIBRARIES}
+        DEPENDS      ext_tinyspline
+        )
+list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_tinyspline)
+
 # Qhullcpp
 if(USE_SYSTEM_QHULLCPP)
     open3d_find_package_3rdparty_library(3rdparty_qhullcpp

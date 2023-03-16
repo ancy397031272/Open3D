@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "open3d/geometry/Geometry3D.h"
-#include "open3d/geometry/KDTreeSearchParam.h"
 #include "open3d/geometry/KDTreeFlann.h"
+#include "open3d/geometry/KDTreeSearchParam.h"
 #include "open3d/utility/Optional.h"
 
 namespace open3d {
@@ -483,6 +483,13 @@ public:
     DetectBoundaryPoints(
             const KDTreeSearchParam &param = KDTreeSearchParamKNN(),
             double angle_threshold = 90.0);
+    /// \brief Fit Spline from point clouds
+
+    std::vector<Eigen::Vector3d> FitBSpline(const PointCloud &pc,
+                                            size_t sample_num = 100,
+                                            size_t degree = 3,
+                                            bool is_equidistant = true,
+                                            bool is_close = true);
 
 public:
     /// Points coordinates.
