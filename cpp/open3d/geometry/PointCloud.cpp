@@ -14,6 +14,7 @@
 #include "open3d/geometry/BoundingVolume.h"
 #include "open3d/geometry/KDTreeFlann.h"
 #include "open3d/geometry/Qhull.h"
+#include "open3d/geometry/RansacModel.h"
 #include "open3d/geometry/TriangleMesh.h"
 #include "open3d/utility/Eigen.h"
 #include "open3d/utility/Logging.h"
@@ -838,5 +839,132 @@ PointCloud::HiddenPointRemoval(const Eigen::Vector3d &camera_location,
     return std::make_tuple(visible_mesh, pt_map);
 }
 
+std::tuple<Eigen::VectorXd, std::vector<size_t>> PointCloud::FitPlaneRansac(
+        const double distance_threshold,
+        const int num_iterations,
+        const double probability) const {
+    RANSACPlane fit;
+    fit.SetMaxIteration(num_iterations);
+    fit.SetProbability(probability);
+    Plane plane;
+    std::vector<size_t> inliers;
+    fit.SetPointCloud(*this);
+    const bool ret = fit.FitModel(distance_threshold, plane, inliers);
+    if (!ret) {
+        plane.parameters_.setZero(4);
+        return std::make_tuple(plane.parameters_, inliers);
+    }
+    return std::make_tuple(plane.parameters_, inliers);
+}
+
+std::tuple<Eigen::VectorXd, std::vector<size_t>> PointCloud::FitSphereRansac(
+        const double distance_threshold,
+        const int num_iterations,
+        const double probability) const {
+    RANSACSphere fit;
+    fit.SetMaxIteration(num_iterations);
+    fit.SetProbability(probability);
+    Sphere sphere;
+    std::vector<size_t> inliers;
+    fit.SetPointCloud(*this);
+    const bool ret = fit.FitModel(distance_threshold, sphere, inliers);
+    if (!ret) {
+        sphere.parameters_.setZero(4);
+        return std::make_tuple(sphere.parameters_, inliers);
+    }
+    return std::make_tuple(sphere.parameters_, inliers);
+}
+
+std::tuple<Eigen::VectorXd, std::vector<size_t>> PointCloud::FitCylinderRansac(
+        const double distance_threshold,
+        const int num_iterations,
+        const double probability) const {
+    if (!HasNormals()) {
+        open3d::utility::LogError("Fit cylinder requires normals.");
+    }
+
+    RANSACCylinder fit;
+    fit.SetMaxIteration(num_iterations);
+    fit.SetProbability(probability);
+    Cylinder cylinder;
+    std::vector<size_t> inliers;
+    fit.SetPointCloud(*this);
+    const bool ret = fit.FitModel(distance_threshold, cylinder, inliers);
+    if (!ret) {
+        cylinder.parameters_.setZero(7);
+        return std::make_tuple(cylinder.parameters_, inliers);
+    }
+    return std::make_tuple(cylinder.parameters_, inliers);
+}
+
+std::tuple<Eigen::VectorXd, std::vector<size_t>> PointCloud::FitCircle3DRansac(
+        const double distance_threshold,
+        const int num_iterations,
+        const double probability) const {
+    RANSACCircle3D fit;
+    fit.SetMaxIteration(num_iterations);
+    fit.SetProbability(probability);
+    Circle3D circle_3d;
+    std::vector<size_t> inliers;
+    fit.SetPointCloud(*this);
+    const bool ret = fit.FitModel(distance_threshold, circle_3d, inliers);
+    if (!ret) {
+        circle_3d.parameters_.setZero(7);
+        return std::make_tuple(circle_3d.parameters_, inliers);
+    }
+    return std::make_tuple(circle_3d.parameters_, inliers);
+}
+
+Eigen::VectorXd PointCloud::FitPlane() const {
+    Plane model;
+    PlaneEstimator estimator;
+    const bool ret = estimator.GeneralFit(*this, model);
+
+    if (!ret) {
+        model.parameters_.setZero(4);
+        return model.parameters_;
+    }
+    return model.parameters_;
+}
+
+Eigen::VectorXd PointCloud::FitSphere() const {
+    Sphere model;
+    SphereEstimator estimator;
+    const bool ret = estimator.GeneralFit(*this, model);
+
+    if (!ret) {
+        model.parameters_.setZero(4);
+        return model.parameters_;
+    }
+    return model.parameters_;
+}
+
+Eigen::VectorXd PointCloud::FitCylinder() const {
+    if (!HasNormals()) {
+        open3d::utility::LogError("Fit cylinder requires normals.");
+    }
+
+    Cylinder model;
+    CylinderEstimator estimator;
+    const bool ret = estimator.GeneralFit(*this, model);
+
+    if (!ret) {
+        model.parameters_.setZero(7);
+        return model.parameters_;
+    }
+    return model.parameters_;
+}
+
+Eigen::VectorXd PointCloud::FitCircle3D() const {
+    Circle3D model;
+    Circle3DEstimator estimator;
+    const bool ret = estimator.GeneralFit(*this, model);
+
+    if (!ret) {
+        model.parameters_.setZero(7);
+        return model.parameters_;
+    }
+    return model.parameters_;
+}
 }  // namespace geometry
 }  // namespace open3d

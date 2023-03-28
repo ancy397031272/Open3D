@@ -229,6 +229,23 @@ Returns:
                  "algorithm.",
                  "distance_threshold"_a, "ransac_n"_a, "num_iterations"_a,
                  "probability"_a = 0.99999999)
+            .def("fit_plane_ransac", &PointCloud::FitPlaneRansac, "Fit a plane ransac from point clouds",
+                 py::arg("distance_threshold") = 0.01,
+                 py::arg("num_iterations") = 100, py::arg("probability") = 0.9999)
+            .def("fit_sphere_ransac", &PointCloud::FitSphereRansac, "Fit a sphere ransac from point clouds",
+                 py::arg("distance_threshold") = 0.01,
+                 py::arg("num_iterations") = 100, py::arg("probability") = 0.9999)
+            .def("fit_cylinder_ransac", &PointCloud::FitCylinderRansac, "Fit a cylinder ransac from point clouds",
+                 py::arg("distance_threshold") = 0.01,
+                 py::arg("num_iterations") = 100, py::arg("probability") = 0.9999)
+            .def("fit_circle3D_ransac", &PointCloud::FitCircle3DRansac, "Fit a circle3D ransac from point clouds",
+                 py::arg("distance_threshold") = 0.01,
+                 py::arg("num_iterations") = 100, py::arg("probability") = 0.9999)
+
+            .def("fit_plane", &PointCloud::FitPlane, "Fit a plane from point clouds")
+            .def("fit_sphere", &PointCloud::FitSphere, "Fit a sphere  from point clouds")
+            .def("fit_cylinder", &PointCloud::FitCylinder, "Fit a cylinder  from point clouds")
+            .def("fit_circle3D", &PointCloud::FitCircle3D, "Fit a circle3D  from point clouds")
             .def("detect_planar_patches", &PointCloud::DetectPlanarPatches,
                  R"doc(
 Detects planar patches in the point cloud using a robust statistics-based approach.

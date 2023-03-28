@@ -36,6 +36,7 @@ target_sources(geometry PRIVATE
     VoxelGrid.cpp
     VoxelGridFactory.cpp
     BoundaryDetection.cpp
+    RansacModel.cpp
 )
 
 open3d_show_and_abort_on_warning(geometry)

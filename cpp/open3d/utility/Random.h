@@ -171,6 +171,62 @@ protected:
     std::normal_distribution<T> distribution_;
 };
 
+/// \brief Extract a random sample of given sample_size from the input indices
+///
+/// \tparam T
+
+template <typename T>
+class RandomSampler {
+public:
+    explicit RandomSampler(const size_t size) : size_(size) {
+        std::random_device rd;
+        rng_ = std::mt19937(rd());
+    }
+
+    // This operator is usually used in for loop and sample a small subset from
+    // original indices
+    std::vector<T> operator()(size_t sample_size) {
+        // Lock this operation when using OpenMP to ensure synchronization
+        std::lock_guard<std::mutex> guard(mutex_);
+
+        std::vector<T> sample;
+        sample.reserve(sample_size);
+        size_t valid_sample = 0;
+        while (valid_sample < sample_size) {
+            size_t idx = rng_() % size_;
+            if (std::find(sample.begin(), sample.end(), idx) == sample.end()) {
+                sample.push_back(idx);
+                valid_sample++;
+            }
+        }
+
+        return sample;
+    }
+
+    // This function is usually called once to sample more than half of original
+    // indices
+    std::vector<T> SampleWithoutDuplicate(size_t sample_size) {
+        std::vector<T> indices(size_);
+        std::iota(indices.begin(), indices.end(), 0);
+
+        for (size_t i = 0; i < sample_size; ++i) {
+            std::swap(indices[i], indices[rng_() % size_]);
+        }
+
+        std::vector<T> sample;
+        sample.reserve(sample_size);
+        for (int idx = 0; idx < sample_size; ++idx) {
+            sample.push_back(indices[idx]);
+        }
+
+        return sample;
+    }
+
+private:
+    size_t size_;
+    std::mt19937 rng_;
+    std::mutex mutex_;
+};
 }  // namespace random
 }  // namespace utility
 }  // namespace open3d

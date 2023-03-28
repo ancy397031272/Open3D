@@ -484,6 +484,31 @@ public:
             const KDTreeSearchParam &param = KDTreeSearchParamKNN(),
             double angle_threshold = 90.0);
 
+    std::tuple<Eigen::VectorXd, std::vector<size_t>> FitPlaneRansac(
+            const double distance_threshold = 0.01,
+            const int num_iterations = 100,
+            const double probability = 0.99999999) const;
+
+    std::tuple<Eigen::VectorXd, std::vector<size_t>> FitSphereRansac(
+            const double distance_threshold = 0.01,
+            const int num_iterations = 100,
+            const double probability = 0.99999999) const;
+
+    std::tuple<Eigen::VectorXd, std::vector<size_t>> FitCylinderRansac(
+            const double distance_threshold = 0.01,
+            const int num_iterations = 100,
+            const double probability = 0.99999999) const;
+    std::tuple<Eigen::VectorXd, std::vector<size_t>> FitCircle3DRansac(
+            const double distance_threshold = 0.01,
+            const int num_iterations = 100,
+            const double probability = 0.99999999) const;
+
+
+    Eigen::VectorXd FitPlane() const;
+    Eigen::VectorXd FitSphere() const;
+    Eigen::VectorXd FitCylinder() const;
+    Eigen::VectorXd FitCircle3D() const;
+
 public:
     /// Points coordinates.
     std::vector<Eigen::Vector3d> points_;
