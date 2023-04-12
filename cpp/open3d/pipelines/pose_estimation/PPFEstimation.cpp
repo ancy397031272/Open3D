@@ -961,7 +961,7 @@ void PPFEstimator::Impl::RefineSparsePose(
     const open3d::pipelines::registration::ICPConvergenceCriteria criteria(
             1e-6, 1e-6, SPARSE_REFINE_ICP_ITERATION);
 #pragma omp parallel for
-    for (size_t i = 0; i < clustered_pose.size(); i++) {
+    for (int i = 0; i < static_cast<int>(clustered_pose.size()); i++) {
         if (clustered_pose[i].size() == 0) {
             continue;
         }
