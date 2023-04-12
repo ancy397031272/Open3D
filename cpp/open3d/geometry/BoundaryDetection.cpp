@@ -107,7 +107,7 @@ PointCloud::DetectBoundaryPoints(const KDTreeSearchParam& param,
     open3d::geometry::KDTreeFlann kdtree(*this);
 #pragma omp parallel for schedule(static) \
         num_threads(utility::EstimateMaxThreads())
-    for (size_t idx = 0; idx < num; idx++) {
+    for (int idx = 0; idx < static_cast<int>(num); idx++) {
         std::vector<int> ret_indices;
         std::vector<double> out_dists_sqr;
         if (kdtree.Search(points_[idx], param, ret_indices, out_dists_sqr) <
