@@ -1163,14 +1163,17 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
         }
     }
     std::vector<size_t> pc_sample_index;
-    std::shared_ptr<open3d::geometry::PointCloud>  pc_sample_ptr;
+    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+
     std::tie(pc_sample_ptr, pc_sample_index) = pc->SpatialDownSample(step, *kdtree, false);
     pc_sample = *pc_sample_ptr;
 //    DownSamplePCNormal(*pc, kdtree, step, nearest_idx, pc_sample);
 
     if (enable_edge_support_) {
-        std::tie(pc_sample_ptr, pc_sample_index) = pc->SpatialDownSample(dist_step_dense_, *kdtree, false);
-        dense_model_sample_ = *pc_sample_ptr;
+        std::vector<size_t> dense_model_sample_index;
+        auto dense_model_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+        std::tie(dense_model_sample_ptr, pc_sample_index) = pc->SpatialDownSample(dist_step_dense_, *kdtree, false);
+        dense_model_sample_ = *dense_model_sample_ptr;
 //        DownSamplePCNormal(*pc, kdtree, dist_step_dense_, nearest_idx,
 //                           dense_model_sample_);
         model_edge_ind_.clear();
