@@ -1064,7 +1064,7 @@ void PPFEstimator::Impl::DownSamplePCNormal(
         selected_indices.emplace_back(cur_i);
         n_searched =
                 kdtree->SearchRadius(p, search_r, ret_indices, out_dists_sqr);
-
+        // todo: bug
         for (int i = 0; i < n_searched; i++) {
             near_i = ret_indices[i];
             dist = sqrt(out_dists_sqr[i]);
@@ -1162,12 +1162,20 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
             calc_flags[cur_i] = true;
         }
     }
+    std::vector<size_t> pc_sample_index;
+    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
 
-    DownSamplePCNormal(*pc, kdtree, step, nearest_idx, pc_sample);
+    std::tie(pc_sample_ptr, pc_sample_index) = pc->SpatialDownSample(step, *kdtree, false);
+    pc_sample = *pc_sample_ptr;
+//    DownSamplePCNormal(*pc, kdtree, step, nearest_idx, pc_sample);
 
     if (enable_edge_support_) {
-        DownSamplePCNormal(*pc, kdtree, dist_step_dense_, nearest_idx,
-                           dense_model_sample_);
+        std::vector<size_t> dense_model_sample_index;
+        auto dense_model_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+        std::tie(dense_model_sample_ptr, pc_sample_index) = pc->SpatialDownSample(dist_step_dense_, *kdtree, false);
+        dense_model_sample_ = *dense_model_sample_ptr;
+//        DownSamplePCNormal(*pc, kdtree, dist_step_dense_, nearest_idx,
+//                           dense_model_sample_);
         model_edge_ind_.clear();
         ExtractEdges(dense_model_sample_, normal_r, model_edge_ind_);
         utility::LogInfo("Extract {} edge points form model point clouds.",
