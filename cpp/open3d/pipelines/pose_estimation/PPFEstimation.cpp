@@ -243,10 +243,13 @@ void PPFEstimator::Impl::PreprocessTrain(
             diameter * config_.training_param_.calc_normal_relative;
 
     utility::LogInfo(
-            "Model training params: normal search radius: {}, sample "
-            "distance: {}, dense sample distance: {}, "
+            "Model training params: "
+            "diameter: {}, "
+            "normal search radius: {}, "
+            "sample  distance: {}, "
+            "dense sample distance: {}, "
             "distance threshold: {}",
-            normal_r, dist_step_, dist_step_dense_, dist_threshold_);
+            diameter, normal_r, dist_step_, dist_step_dense_, dist_threshold_);
 
     auto kdtree = std::make_shared<KDTree>(*pc);
     CalcModelNormalAndSampling(pc, kdtree, normal_r, dist_step_, view_pt,
@@ -269,20 +272,31 @@ void PPFEstimator::Impl::PreprocessEstimate(
     const bool has_normals = pc->HasNormals();
     const double normal_radius = calc_normal_relative_ * diameter_;
     pc->RemoveNonFinitePoints();
+    pc->RemoveDuplicatedPoints();
     if (!has_normals) {
-        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
-                normal_radius, NORMAL_CALC_NN));
+        //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
+        //                normal_radius, NORMAL_CALC_NN), false);
+        pc->EstimateNormals(
+                open3d::geometry::KDTreeSearchParamRadius(normal_radius), true);
     }
     NormalConsistent(*pc);
 
-    const int num = pc->points_.size();
-    pc_sample = *pc->VoxelDownSample(dist_step_);
+    std::vector<size_t> pc_sample_index;
+    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+    std::tie(pc_sample_ptr, pc_sample_index) =
+            pc->SpatialDownSample(dist_step_, false);
+    pc_sample = *pc_sample_ptr;
 
     utility::LogInfo("Scene point number is {} | {} after preprocessing.",
-                     pc_sample.points_.size(), num);
+                     pc_sample.points_.size(), pc->points_.size());
 
     if (enable_edge_support_) {
-        dense_scene_sample_ = *pc->VoxelDownSample(dist_step_dense_);
+        std::vector<size_t> dense_pc_sample_index;
+        auto dense_scene_sample_ptr =
+                std::make_shared<open3d::geometry::PointCloud>();
+        std::tie(dense_scene_sample_ptr, dense_pc_sample_index) =
+                pc->SpatialDownSample(dist_step_dense_, false);
+        dense_scene_sample_ = *dense_scene_sample_ptr;
 
         scene_edge_ind_.clear();
         const double radius = diameter_ * calc_normal_relative_;
@@ -295,11 +309,10 @@ void PPFEstimator::Impl::PreprocessEstimate(
 
 bool PPFEstimator::Impl::Estimate(const PointCloudPtr &pc,
                                   std::vector<Pose6D> &results) {
-    PreprocessEstimate(pc, scene_sample_);
-
     results.clear();
     Timer timer;
     timer.Start();
+    PreprocessEstimate(pc, scene_sample_);
 
     if (!trained_) {
         utility::LogError("Need training before estimating!");
@@ -960,6 +973,7 @@ void PPFEstimator::Impl::RefineSparsePose(
             config_.refine_param_.rel_dist_sparse_thresh * dist_step_;
     const open3d::pipelines::registration::ICPConvergenceCriteria criteria(
             1e-6, 1e-6, SPARSE_REFINE_ICP_ITERATION);
+    utility::LogInfo("max correspondence distance: {}", max_correspondence_distance);
 #pragma omp parallel for
     for (int i = 0; i < static_cast<int>(clustered_pose.size()); i++) {
         if (clustered_pose[i].size() == 0) {
@@ -1087,7 +1101,6 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
         const PointXYZ &view_pt,
         open3d::geometry::PointCloud &pc_sample) {
     pc_sample.Clear();
-    const int n_pt = pc->points_.size();
     const bool has_normals = pc->HasNormals();
 
     // Calc normals.
@@ -1095,17 +1108,25 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
         if (config_.training_param_.use_external_normal) {
             utility::LogWarning("The model has no pre-computed normals.");
         }
-
-        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
-                                    normal_r, NORMAL_CALC_NN),
+        //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
+        //                                    normal_r, NORMAL_CALC_NN),
+        //                            false);
+        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamRadius(normal_r),
                             false);
     }
     pc->NormalizeNormals();
 
+    // down sample
+    std::vector<size_t> pc_sample_index;
+    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+    std::tie(pc_sample_ptr, pc_sample_index) =
+            pc->SpatialDownSample(step, *kdtree, false);
+    pc_sample = *pc_sample_ptr;
+
     // Calc nearest point respect to view point.
     std::vector<int> ret_indices(1);
     std::vector<double> out_dists_sqr(1);
-    const PointXYZ nearest = pc->points_[ret_indices[0]];
+    const PointXYZ nearest = pc_sample.points_[ret_indices[0]];
     const int nearest_idx = ret_indices[0];
 
     if (!config_.training_param_.use_external_normal || !has_normals) {
@@ -1114,12 +1135,15 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
                                  view_pt(1) - nearest(1),
                                  view_pt(2) - nearest(2));
 
-        if (pt_2_view.transpose() * pc->normals_[nearest_idx] < 0)
-            FlipNormal(pc->normals_[nearest_idx]);
+        if (pt_2_view.transpose() * pc_sample.normals_[nearest_idx] < 0)
+            FlipNormal(pc_sample.normals_[nearest_idx]);
 
-        if (invert_normal_) FlipNormal(pc->normals_[nearest_idx]);
+        if (invert_normal_) FlipNormal(pc_sample.normals_[nearest_idx]);
 
         // Normal consistent.
+        //        std::vector<bool> mask(np);
+        const int n_pt = pc_sample.points_.size();
+
         std::vector<bool> calc_flags(n_pt, false);
         auto cmp = [](std::pair<int, double> &q0, std::pair<int, double> &q1) {
             return q0.second > q1.second;
@@ -1134,14 +1158,17 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
         pq.push(cur_pair);
         std::vector<int> ret_indices2;
         std::vector<double> out_dists_sqr2;
+
+        auto kd_tree = std::make_shared<KDTree>(pc_sample);
+
         while (!pq.empty()) {
             cur_pair = pq.top();
             cur_i = cur_pair.first;
             pq.pop();
             if (calc_flags[cur_i]) continue;
-            const PointXYZ &temp = pc->points_[cur_i];
-            n_searched = kdtree->SearchRadius(temp, normal_r, ret_indices2,
-                                              out_dists_sqr2);
+            const PointXYZ &temp = pc_sample.points_[cur_i];
+            n_searched = kd_tree->SearchRadius(temp, normal_r * 2, ret_indices2,
+                                               out_dists_sqr2);
 
             for (int i = 0; i < n_searched; i++) {
                 near_i = ret_indices2[i];
@@ -1153,8 +1180,8 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
             for (int i = 0; i < n_searched; i++) {
                 near_i = ret_indices2[i];
                 if (calc_flags[near_i]) {
-                    auto &cur_n = pc->normals_[cur_i];
-                    auto &near_n = pc->normals_[near_i];
+                    auto &cur_n = pc_sample.normals_[cur_i];
+                    auto &near_n = pc_sample.normals_[near_i];
                     if (cur_n.dot(near_n) < 0) cur_n *= -1;
                     break;
                 }
@@ -1162,20 +1189,18 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
             calc_flags[cur_i] = true;
         }
     }
-    std::vector<size_t> pc_sample_index;
-    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
 
-    std::tie(pc_sample_ptr, pc_sample_index) = pc->SpatialDownSample(step, *kdtree, false);
-    pc_sample = *pc_sample_ptr;
-//    DownSamplePCNormal(*pc, kdtree, step, nearest_idx, pc_sample);
+    //    DownSamplePCNormal(*pc, kdtree, step, nearest_idx, pc_sample);
 
     if (enable_edge_support_) {
         std::vector<size_t> dense_model_sample_index;
-        auto dense_model_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
-        std::tie(dense_model_sample_ptr, pc_sample_index) = pc->SpatialDownSample(dist_step_dense_, *kdtree, false);
+        auto dense_model_sample_ptr =
+                std::make_shared<open3d::geometry::PointCloud>();
+        std::tie(dense_model_sample_ptr, pc_sample_index) =
+                pc->SpatialDownSample(dist_step_dense_, *kdtree, false);
         dense_model_sample_ = *dense_model_sample_ptr;
-//        DownSamplePCNormal(*pc, kdtree, dist_step_dense_, nearest_idx,
-//                           dense_model_sample_);
+        //        DownSamplePCNormal(*pc, kdtree, dist_step_dense_, nearest_idx,
+        //                           dense_model_sample_);
         model_edge_ind_.clear();
         ExtractEdges(dense_model_sample_, normal_r, model_edge_ind_);
         utility::LogInfo("Extract {} edge points form model point clouds.",

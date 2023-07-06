@@ -33,9 +33,12 @@ if __name__ == '__main__':
     # init training param
     config.training_param.rel_sample_dist = 0.03
     config.training_param.calc_normal_relative = 0.02
-    config.voting_param.min_angle_thresh = 20
+    config.voting_param.min_angle_thresh = np.deg2rad(20)
     config.voting_param.min_dist_thresh = 0.1
     config.score_thresh = 0.01
+    config.training_param.rel_dense_sample_dist = 0.001
+    config.refine_param.rel_dist_sparse_thresh = 5
+    config.num_result = 1
     config.refine_param.method = o3d.pipelines.pose_estimation.PPFEstimatorConfig.PointToPlane
     # init ppf detector
     ppf = o3d.pipelines.pose_estimation.PPFEstimator(config)
@@ -59,10 +62,15 @@ if __name__ == '__main__':
     else:
         pose = results[0].pose
         sampled_model = ppf.get_sampled_model()
+
+        # o3d.visualization.draw_geometries([sampled_model])
+        sampled_scene = ppf.get_sampled_scene()
+        # o3d.visualization.draw_geometries([sampled_scene])
         reg_result = o3d.pipelines.registration.registration_icp(
-            sampled_model, scene, 0.01, pose,
-            o3d.pipelines.registration.TransformationEstimationPointToPoint())
-        pose = reg_result.transformation
+            sampled_model, sampled_scene, 0.1, pose,
+            o3d.pipelines.registration.TransformationEstimationPointToPlane(), o3d.pipelines.registration.ICPConvergenceCriteria(
+                relative_fitness=1e-6, relative_rmse=1e-6, max_iteration=500))
+        # pose = reg_result.transformation
 
         transformed_model = model.transform(pose)
         transformed_model.paint_uniform_color([1, 0, 0])

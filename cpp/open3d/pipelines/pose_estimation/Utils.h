@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cmath>
 #include <float.h>
 #include <omp.h>
 #include <string.h>
 
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -131,7 +131,7 @@ inline void NormalConsistent(open3d::geometry::PointCloud &pc) {
     } else {
         const int size = pc.points_.size();
 
-//#pragma omp parallel for
+        // #pragma omp parallel for
         for (int i = 0; i < size; i++) {
             if (pc.points_[i].dot(pc.normals_[i]) > 0) {
                 pc.normals_[i] *= -1;
@@ -140,7 +140,6 @@ inline void NormalConsistent(open3d::geometry::PointCloud &pc) {
         }
     }
 }
-
 
 /**
  * @brief compute point to line distance

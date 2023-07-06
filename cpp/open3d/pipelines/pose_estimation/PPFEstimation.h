@@ -6,11 +6,11 @@
 // view point position factor
 const int VIEW_POINT_Z_EXTEND = 2;
 // maximum nn points of kd-tree search for normal computing
-const int NORMAL_CALC_NN =30;
+const int NORMAL_CALC_NN = 30;
 // maximum iteration of sparse pose refine for clustered pose
-const int SPARSE_REFINE_ICP_ITERATION =30;
-const double NEIGHBOR_RADIUS_FACTOR =0.5;
-const double VOTING_THRESHOLD_FACTOR =0.2;
+const int SPARSE_REFINE_ICP_ITERATION = 100;
+const double NEIGHBOR_RADIUS_FACTOR = 0.5;
+const double VOTING_THRESHOLD_FACTOR = 0.2;
 const double VOTE_NUM_RATIO = 0.8;
 const double VOTES_NUM_REDUCTION_FACTOR = 0.25;
 
@@ -201,13 +201,13 @@ public:
      * @param filename
      */
     bool SaveModel(const std::string &filename);
-private:
 
+private:
     class Impl;
     std::unique_ptr<Impl> impl_ptr_;
     bool CheckConfig(const PPFEstimatorConfig &config);
-    bool ReadFromFile(FILE * file);
-    bool WriteToFile(FILE * file);
+    bool ReadFromFile(FILE *file);
+    bool WriteToFile(FILE *file);
 };
 
 }  // namespace pose_estimation
