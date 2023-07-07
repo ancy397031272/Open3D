@@ -152,6 +152,10 @@ private:
                        std::vector<Transformation> &tmg_ptr,
                        bool b_same_pointset);
 
+    void CalPointsNormal(open3d::geometry::PointCloud &reference_pts,
+                         const open3d::geometry::PointCloud &refered_pts,
+                         const double normal_r);
+
     void DownSamplePCNormal(const open3d::geometry::PointCloud &pc,
                             const std::shared_ptr<KDTree> &kdtree,
                             const double radius,
@@ -259,6 +263,40 @@ void PPFEstimator::Impl::PreprocessTrain(
                      pc_sample.points_.size(), pc->points_.size());
 }
 
+void PPFEstimator::Impl::CalPointsNormal(
+        open3d::geometry::PointCloud &reference_pts,
+        const open3d::geometry::PointCloud &refered_pts,
+        const double normal_r) {
+    const auto &points = reference_pts.points_;
+    auto &normals = reference_pts.normals_;
+    normals.resize(points.size());
+
+    open3d::geometry::KDTreeFlann kdtree;
+    kdtree.SetGeometry(refered_pts);
+    auto search_param =
+            open3d::geometry::KDTreeSearchParamRadius(normal_r);
+
+//#pragma omp parallel for schedule(static)
+    for (int i = 0; i < (int)points.size(); i++) {
+        std::vector<int> indices;
+        std::vector<double> distance2;
+        Eigen::Matrix3d covariance;
+        if (kdtree.Search(points[i], search_param, indices, distance2) >= 3) {
+            covariance = utility::ComputeCovariance(refered_pts.points_, indices);
+
+        } else {
+            covariance = Eigen::Matrix3d::Identity();
+        }
+
+        auto normal = ComputeNormal(covariance);
+        if (normal.norm() == 0.0) {
+            normal = Eigen::Vector3d(0.0, 0.0, 1.0);
+        }
+
+        normals[i] = normal;
+    }
+}
+
 void PPFEstimator::Impl::PreprocessEstimate(
         const PointCloudPtr &pc, open3d::geometry::PointCloud &pc_sample) {
     Timer timer;
@@ -273,19 +311,24 @@ void PPFEstimator::Impl::PreprocessEstimate(
     const double normal_radius = calc_normal_relative_ * diameter_;
     pc->RemoveNonFinitePoints();
     pc->RemoveDuplicatedPoints();
-    if (!has_normals) {
-        //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
-        //                normal_radius, NORMAL_CALC_NN), false);
-        pc->EstimateNormals(
-                open3d::geometry::KDTreeSearchParamRadius(normal_radius), true);
-    }
-    NormalConsistent(*pc);
+//    if (!has_normals) {
+//        //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
+//        //                normal_radius, NORMAL_CALC_NN), false);
+//        pc->EstimateNormals(
+//                open3d::geometry::KDTreeSearchParamRadius(normal_radius), true);
+//    }
+
 
     std::vector<size_t> pc_sample_index;
     auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
     std::tie(pc_sample_ptr, pc_sample_index) =
             pc->SpatialDownSample(dist_step_, false);
     pc_sample = *pc_sample_ptr;
+
+    if (!has_normals) {
+        CalPointsNormal(pc_sample, *pc, normal_radius);
+    }
+    NormalConsistent(pc_sample);
 
     utility::LogInfo("Scene point number is {} | {} after preprocessing.",
                      pc_sample.points_.size(), pc->points_.size());
@@ -973,7 +1016,8 @@ void PPFEstimator::Impl::RefineSparsePose(
             config_.refine_param_.rel_dist_sparse_thresh * dist_step_;
     const open3d::pipelines::registration::ICPConvergenceCriteria criteria(
             1e-6, 1e-6, SPARSE_REFINE_ICP_ITERATION);
-    utility::LogInfo("max correspondence distance: {}", max_correspondence_distance);
+    utility::LogInfo("max correspondence distance: {}",
+                     max_correspondence_distance);
 #pragma omp parallel for
     for (int i = 0; i < static_cast<int>(clustered_pose.size()); i++) {
         if (clustered_pose[i].size() == 0) {
@@ -1103,6 +1147,15 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
     pc_sample.Clear();
     const bool has_normals = pc->HasNormals();
 
+
+    pc->RemoveNonFinitePoints();
+    pc->RemoveDuplicatedPoints();
+    // down sample
+    std::vector<size_t> pc_sample_index;
+    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
+    std::tie(pc_sample_ptr, pc_sample_index) =
+            pc->SpatialDownSample(step, *kdtree, false);
+    pc_sample = *pc_sample_ptr;
     // Calc normals.
     if (!has_normals) {
         if (config_.training_param_.use_external_normal) {
@@ -1111,17 +1164,11 @@ void PPFEstimator::Impl::CalcModelNormalAndSampling(
         //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(
         //                                    normal_r, NORMAL_CALC_NN),
         //                            false);
-        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamRadius(normal_r),
-                            false);
+        //        pc->EstimateNormals(open3d::geometry::KDTreeSearchParamRadius(normal_r),
+        //                            false);
+        CalPointsNormal(pc_sample, *pc, normal_r);
     }
-    pc->NormalizeNormals();
-
-    // down sample
-    std::vector<size_t> pc_sample_index;
-    auto pc_sample_ptr = std::make_shared<open3d::geometry::PointCloud>();
-    std::tie(pc_sample_ptr, pc_sample_index) =
-            pc->SpatialDownSample(step, *kdtree, false);
-    pc_sample = *pc_sample_ptr;
+    pc_sample.NormalizeNormals();
 
     // Calc nearest point respect to view point.
     std::vector<int> ret_indices(1);

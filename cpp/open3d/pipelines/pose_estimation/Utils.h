@@ -183,7 +183,12 @@ inline T Rad2Deg(const T angle_rad) {
     return angle_rad / M_PI * 180;
 }
 
+inline Eigen::Vector3d ComputeNormal(const Eigen::Matrix3d &covariance) {
 
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver;
+    solver.compute(covariance, Eigen::ComputeEigenvectors);
+    return solver.eigenvectors().col(0);
+}
 
 }  // namespace pose_estimation
 }  // namespace pipelines
