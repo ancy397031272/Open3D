@@ -1352,6 +1352,7 @@ void PPFEstimator::Impl::GenerateModelPCNeighbor(
 }
 
 void PPFEstimator::Impl::GenerateLUT() {
+    // Considering the symmetry of angles in the PPF algorithm: 0-360 and 360-0
     int alpha_model_num = 2 * angle_num_ - 1;
     alpha_lut_.resize(alpha_model_num * alpha_model_num);
     int row_idx;
