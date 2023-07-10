@@ -37,10 +37,10 @@ int main() {
 
     pipelines::pose_estimation::PPFEstimatorConfig config;
     config.training_param_.invert_model_normal = true;
-    config.training_param_.rel_sample_dist = 0.03;
+    config.training_param_.rel_sample_dist = 0.02;
     config.training_param_.calc_normal_relative = 0.04;
-    config.training_param_.rel_dense_sample_dist = 0.02;
-
+    config.training_param_.rel_dense_sample_dist = 0.01;
+    //    config.refine_param_.rel_dist_sparse_thresh = 0.5;
     config.voting_param_.min_angle_thresh = 0.52;
     config.voting_param_.min_dist_thresh = 0.1;
     config.score_thresh_ = 0.01;
@@ -51,19 +51,35 @@ int main() {
 
     pipelines::pose_estimation::PPFEstimator ppf(config);
 
-    ppf.LoadModel(
-            "/home/rvbust/Tmp/machined_parts_pose_estimation/data/model.p3m");
+    //    ppf.LoadModel(
+    //            "/home/rvbust/Tmp/machined_parts_pose_estimation/data/model.p3m");
 
-    geometry::PointCloud scene_pc;
+    geometry::PointCloud scene_pc, model_pc;
     io::ReadPointCloud(
-            "/home/rvbust/Tmp/machined_parts_pose_estimation/output/"
-            "sampled_pcd.ply",
+            "/home/wal/Documents/ABH_DATA/test_data_130w/model.ply",
+            model_pc);
+    ppf.Train(std::make_shared<geometry::PointCloud>(model_pc));
+    io::ReadPointCloud(
+            "/home/wal/Documents/ABH_DATA/test_data_130w/3.ply",
             scene_pc);
     std::vector<pipelines::pose_estimation::Pose6D> results;
     //
     std::shared_ptr<geometry::PointCloud> scene_pc_ptr =
             std::make_shared<geometry::PointCloud>(scene_pc);
     ppf.Estimate(scene_pc_ptr, results);
+
+
+    auto result_icp = pipelines::registration::RegistrationICP(
+            model_pc, *scene_pc_ptr, 5,
+            results[0].pose_,
+            pipelines::registration::TransformationEstimationPointToPoint(
+                    ),
+            pipelines::registration::ICPConvergenceCriteria(1e-6, 1e-6, 1000));
+
+    model_pc.Transform(result_icp.transformation_);
+    model_pc.PaintUniformColor({1, 0, 0});
+    scene_pc_ptr->PaintUniformColor({0, 1, 0});
+    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>(model_pc), scene_pc_ptr});
 
 
     return 0;
