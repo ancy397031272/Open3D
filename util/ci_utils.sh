@@ -55,8 +55,14 @@ install_python_dependencies() {
         TF_ARCH_DISABLE_NAME=tensorflow-cpu
         TORCH_GLNX="torch==$TORCH_CUDA_GLNX_VER"
     else
-        TF_ARCH_NAME=tensorflow-cpu
-        TF_ARCH_DISABLE_NAME=tensorflow
+        # tensorflow-cpu wheels for macOS arm64 are not available
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            TF_ARCH_NAME=tensorflow
+            TF_ARCH_DISABLE_NAME=tensorflow
+        else
+            TF_ARCH_NAME=tensorflow-cpu
+            TF_ARCH_DISABLE_NAME=tensorflow
+        fi
         TORCH_GLNX="torch==$TORCH_CPU_GLNX_VER"
     fi
 
@@ -310,11 +316,9 @@ run_cpp_unit_tests() {
 # Need variable OPEN3D_INSTALL_DIR
 test_cpp_example() {
     # Now I am in Open3D/build/
-    cd ..
-    git clone https://github.com/isl-org/open3d-cmake-find-package.git
-    cd open3d-cmake-find-package
+    pushd ../examples/cmake/open3d-cmake-find-package
     mkdir build
-    cd build
+    pushd build
     echo Testing build with cmake
     cmake -DCMAKE_INSTALL_PREFIX=${OPEN3D_INSTALL_DIR} ..
     make -j"$NPROC" VERBOSE=1
@@ -332,8 +336,9 @@ test_cpp_example() {
             ./Draw --skip-for-unit-test
         fi
     fi
-    # Now I am in Open3D/open3d-cmake-find-package/build/
-    cd ../../build
+    popd
+    popd
+    # Now I am in Open3D/build/
 }
 
 # Install dependencies needed for building documentation (on Ubuntu 18.04)

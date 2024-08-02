@@ -1,21 +1,8 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.22)
 # If you're using Ubuntu 18.04, we suggest you install the latest CMake from the
 # official repository https://apt.kitware.com/.
-#
-# CMake 3.19+ is required to:
-# - allow linking with OBJECT libraries
-# - prevent erroneous -gencode option deduplication with CUDA
-# - simplify generator expressions for selecting compile flags and setting
-#   global hardened link flags
-# - use first-class language support for ISPC (3.19.2 patch release required)
-#
-# CMake 3.20+ is required to:
-# - detect IntelLLVM compiler for SYCL
-
-if (APPLE)
-set (CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING
-    "Minimum OS X deployment version" FORCE)
-endif()
+# CMake 3.22+ is required by Assimp v5.4.2
+# CMake 3.20+ is required to detect IntelLLVM compiler for SYCL
 
 # CMAKE_HOST_SYSTEM_PROCESSOR is only available after calling project(),
 # which depends on ${OPEN3D_VERSION}, which depends on ${DEVELOPER_BUILD}.
@@ -35,6 +22,11 @@ if(APPLE)
     )
     if(PROCESSOR_ARCH STREQUAL "arm64")
         set(APPLE_AARCH64 TRUE)
+        set (CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING
+            "Minimum OS X deployment version" FORCE)
+    else()
+        set (CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING
+            "Minimum OS X deployment version" FORCE)
     endif()
 endif()
 
@@ -47,6 +39,7 @@ option(BUILD_UNIT_TESTS           "Build Open3D unit tests"                  OFF
 option(BUILD_BENCHMARKS           "Build the micro benchmarks"               OFF)
 option(BUILD_PYTHON_MODULE        "Build the python module"                  ON )
 option(BUILD_CUDA_MODULE          "Build the CUDA module"                    OFF)
+option(BUILD_WITH_CUDA_STATIC     "Build with static CUDA libraries"         ON )
 option(BUILD_COMMON_CUDA_ARCHS    "Build for common CUDA GPUs (for release)" OFF)
 if (WIN32)   # Causes CUDA runtime error on Windows (See issue #6555)
     option(ENABLE_CACHED_CUDA_MANAGER "Enable cached CUDA memory manager"    OFF)
@@ -117,9 +110,12 @@ option(USE_SYSTEM_VTK             "Use system pre-installed VTK"             OFF
 option(USE_SYSTEM_ZEROMQ          "Use system pre-installed ZeroMQ"          OFF)
 if(LINUX_AARCH64 OR APPLE_AARCH64)
     option(BUILD_VTK_FROM_SOURCE      "Build VTK from source"                ON )
-    option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"           ON )
 else()
     option(BUILD_VTK_FROM_SOURCE      "Build VTK from source"                OFF)
+endif()
+if(LINUX_AARCH64)
+    option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"           ON )
+else()
     option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"           OFF)
 endif()
 
@@ -198,7 +194,7 @@ cmake_policy(GET CMP0072 CMP0072_VALUE)
 if ((LINUX_AARCH64 OR APPLE_AARCH64) AND BUILD_ISPC_MODULE)
     message(FATAL_ERROR "ISPC module is not yet supported on ARM Linux")
 endif()
-if ((LINUX_AARCH64 OR APPLE_AARCH64) AND NOT BUILD_FILAMENT_FROM_SOURCE)
+if (LINUX_AARCH64 AND NOT BUILD_FILAMENT_FROM_SOURCE)
     message(FATAL_ERROR "ARM CPU detected, you must set BUILD_FILAMENT_FROM_SOURCE=ON.")
 endif()
 if ((LINUX_AARCH64 OR APPLE_AARCH64) AND NOT USE_BLAS)
@@ -254,9 +250,10 @@ string(CONCAT OPEN3D_VERSION
     ".${OPEN3D_VERSION_MINOR}"
     ".${OPEN3D_VERSION_PATCH}"
 )
-set(OPEN3D_VERSION_FULL "${OPEN3D_VERSION}${OPEN3D_VERSION_DEVHASH}")
+set(OPEN3D_VERSION_FULL "${OPEN3D_VERSION}${OPEN3D_VERSION_DEVHASH}" CACHE
+    STRING "Open3D full version.")
 # Set additional info
-set(PROJECT_EMAIL       "info@open3d.org")
+set(PROJECT_EMAIL       "open3d@intel.com")
 set(PROJECT_DOCS        "https://www.open3d.org/docs")
 set(PROJECT_CODE        "https://github.com/isl-org/Open3D")
 set(PROJECT_ISSUES      "https://github.com/isl-org/Open3D/issues")
