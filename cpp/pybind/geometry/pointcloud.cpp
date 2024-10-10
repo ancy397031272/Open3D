@@ -84,6 +84,11 @@ void pybind_pointcloud(py::module &m) {
                  "by selecting the farthest point from previous selected "
                  "points iteratively.",
                  "num_samples"_a)
+            .def("fit_b_spline",
+                 &PointCloud::FitBSpline,
+                 "Function to fit b spline into out points.",
+                 "sample_num"_a=100, "degree"_a=3, "is_equidistant"_a= true,
+                 "is_close"_a = true)
             .def("spatial_down_sample",
                  (std::tuple<std::shared_ptr<PointCloud>, std::vector<size_t>>(
                          PointCloud::*)(double, bool) const) &
